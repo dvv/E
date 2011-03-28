@@ -1,0 +1,78 @@
+{ profile: 
+   { name: { formatted: 'Vladimir Dronnikov' },
+     photo: 'http://a1.twimg.com/profile_images/1201572921/577e1a7d915368b7c9650aae5a5c9079_normal.jpeg',
+     displayName: 'Vladimir Dronnikov',
+     preferredUsername: 'dronnikov',
+     url: 'http://twitter.com/dronnikov',
+     providerName: 'Twitter',
+     identifier: 'http://twitter.com/account/profile?user_id=154517906' },
+  stat: 'ok' }
+
+WGOT undefined { profile: 
+   { name: 
+      { givenName: 'Vladimir',
+        familyName: 'Dronnikov',
+        formatted: 'Vladimir V. Dronnikov' },
+     photo: 'http://graph.facebook.com/627218825/picture?type=large',
+     address: { formatted: 'Tver' },
+     verifiedEmail: 'dronnikov@gmail.com',
+     displayName: 'Vladimir V. Dronnikov',
+     preferredUsername: 'VladimirV.Dronnikov',
+     url: 'http://www.facebook.com/profile.php?id=627218825',
+     utcOffset: '04:00',
+     providerName: 'Facebook',
+     identifier: 'http://www.facebook.com/profile.php?id=627218825',
+     email: 'dronnikov@gmail.com' },
+  limited_data: 'false',
+  stat: 'ok' }
+
+
+WGOT undefined { profile: 
+   { googleUserId: '106434544179455042058',
+     name: 
+      { givenName: 'Vladimir',
+        familyName: 'Dronnikov',
+        formatted: 'Vladimir Dronnikov' },
+     verifiedEmail: 'dronnikov@gmail.com',
+     displayName: 'dronnikov',
+     preferredUsername: 'dronnikov',
+     url: 'https://www.google.com/profiles/106434544179455042058',
+     providerName: 'Google',
+     identifier: 'https://www.google.com/profiles/106434544179455042058',
+     email: 'dronnikov@gmail.com' },
+  stat: 'ok' }
+
+
+----------------------------
+
+{ identity: 'http://twitter.com/dronnikov',
+  provider: 'http://twitter.com/',
+  biography: '',
+  web: { default: null },
+  photo: 'http://a1.twimg.com/profile_images/1201572921/577e1a7d915368b7c9650aae5a5c9079_normal.jpeg',
+  nickname: 'dronnikov',
+  name: { full_name: 'Vladimir Dronnikov' },
+  uid: 154517906 }
+
+{ identity: 'https://www.google.com/accounts/o8/id?id=AItOawkQa7dfOpqim3Nsbe1PHXhPmVAoz57n6bA',
+  provider: 'https://www.google.com/accounts/o8/ud',
+  name: 
+   { first_name: 'Dronnikov',
+     last_name: 'Vladimir',
+     full_name: 'Vladimir Dronnikov' },
+  email: 'dronnikov@gmail.com',
+  language: 'ru',
+  address: { home: { country: 'RU' } },
+  uid: '106434544179455042058',
+  photo: 'http://www.google.com/ig/c/photos/public/AIbEiAIAAABDCIrE5t_u-oWmWSILdmNhcmRfcGhvdG8qKDg1MGQwN2FhOWZlNWIyMWUzM2YxNzM0ZTM0ODFiM2IwNTJkNWEwZTEwATQplGNhRujGezBny8Nnq7LJlEf2' }
+
+{ identity: 'http://vkontakte.ru/id96714984',
+  provider: 'http://vkontakte.ru/',
+  uid: 96714984,
+  name: { first_name: 'Владимир', last_name: 'Дронников' },
+  nickname: '',
+  gender: 'M',
+  address: { home: { country: '1' } },
+  photo: 'http://cs9722.vkontakte.ru/u96714984/e_f8142bb8.jpg' }
+
+----------------------------

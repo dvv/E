@@ -8,64 +8,109 @@
 */
 
 //
-// form auth + janrain auth
+// form based authentication, with optional OpenID brokers support
 //
 module.exports.form = function setup(mount, options){
 
 	// setup
 	if (!options) options = {};
-	if (!options.validate) options.validate = function(uid, password, next){next()};
-	// janrain helper
+
+	// OpenID providers
+	var openid = [];
+	// loginza.ru
+	if (options.loginza) {
+		openid.push({
+			name: 'loginza',
+			referrer: /^http:\/\/loginza.ru\/api\/redirect\?/,
+			getUrl: function(token){
+				return 'http://loginza.ru/api/authinfo?token=' + token;
+			}
+		});
+	}
+	// janrain.com
+	if (options.janrain) {
+		openid.push({
+			name: 'janrain',
+			referrer: new RegExp('^http:\/\/' + options.janrain.domain + '.rpxnow.com\/redirect\?'),
+			getUrl: function(token){
+				return 'https://rpxnow.com/api/v2/auth_info?apiKey=' + options.janrain.apiKey + '&token=' + token;
+			}
+		});
+	}
+	
+	// HTTP GET helper
 	var wget = require('../lib/wget');
 
 	// handler
 	return function handler(req, res, next){
-		// check method
-		if (req.method !== 'POST' || req.uri.pathname !== mount) return next();
-		console.log('POSTED to /auth', req.body);
-		// janrain auth?
-		var token = req.body.token;
-		if (token && options.apiKey) {
-			wget.get('https://rpxnow.com/api/v2/auth_info?apiKey=' + options.apiKey + '&token=' + token, function(err, result){
-				console.log(err, result);
-				if (err) {
-					return res.redirect('/failed');
-				}
-				console.log(result);
-				//4) Use the identifier as the unique key to sign the user in to your website, and then redirect the user to the appropriate location.
-			});
-		} else {
-			var uid = req.body.id;
-			// logout
-			if (!uid) {
-				delete req.session;
-				if (req.xhr) {
-					res.send(true);
-				} else {
-					res.redirect('/');
-				}
-			// login
-			} else {
-				// TODO: if validate returned janrain compatible stuff, we could unify things
-				options.validate(uid, req.body.password, function(err, user){
-					if (err) {
-						delete req.session;
-						if (req.xhr) {
-							res.send('Bad user', null, 403);
-						} else {
-							res.redirect(mount);
-						}
-					} else {
-						req.session = {uid: uid};
-						if (req.xhr) {
-							res.send(req.session);
-						} else {
-							res.redirect('/');
-						}
-					}
-				});
-			}
+
+		if (req.uri.pathname !== mount) return next();
+
+		// GET -- render authentication page
+		if (req.method === 'GET') {
+			res.render('auth', options);
+			return;
 		}
+
+		// POST -- handle the input
+		if (req.method !== 'POST') return next();
+		//console.log('POSTED to /auth', req.body, req.headers);
+
+		// authentication helper
+		var authenticate = function(err, result){
+			//console.log('WGOT', err, result);
+			// failed? -> remove req.session
+			if (!result) {
+				delete req.session;
+			// ok? -> set req.session
+			} else {
+				// TODO: signup unless user exists, and pull info from profile
+				// native form?
+				if (result.id) {
+					// ...
+				// loginza?
+				} else if (result.identity) {
+					// ...
+				// janrain?
+				} else if (result.stat === 'ok' && result.profile) {
+					// ...
+				}
+				//console.log(result); //preferredUsername, displayName, photo
+				//var uid = 'DUMMYSOFAR';//result.profile.verifiedEmail;
+				req.session = result;//{uid: uid};
+			}
+			// respond, honoring AJAX
+			if (req.xhr) {
+				res.send(req.session);
+			} else {
+				// FIXME: shouldn't be `mount`?
+				res.redirect('/');
+			}
+		};
+
+		// got auth token from OpenID providers?
+		var token = req.body.token;
+		// OpenID provider
+		if (token) {
+			var referrer = req.header('referrer');
+			// try first matching provider
+			for (var i = 0; i < openid.length; i++) {
+				var provider = openid[i];
+				if (referrer.match(provider.referrer)) {
+					wget.get(provider.getUrl(token), authenticate);
+					return;
+				}
+			}
+			// unknown or forged provider --> force logout
+			authenticate();
+		// native form login
+		} else if (options.validate) {
+			options.validate(req.body.id, req.body.password, authenticate);
+		// no authentication provider
+		} else {
+			next();
+		}
+
 	};
 
 };

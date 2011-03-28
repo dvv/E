@@ -34,6 +34,7 @@ module.exports = function setup(options) {
 	}
 	var parsers = {
 		'application/json': JSON.parse,
+		'text/javascript': JSON.parse,
 		'application/www-urlencoded': qs.parse,
 		'application/x-www-form-urlencoded': qs.parse,
 		'application/xml': guess,
