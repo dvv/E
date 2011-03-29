@@ -1,7 +1,7 @@
 'use strict';
 
 //
-// helpers to resctrict access to properties
+// helpers to restrict access to properties
 //
 
 // read-only
@@ -32,16 +32,10 @@ function cr(attr) {
 	});
 }
 
-var schema = {};
-
 //
-// TODO: make id be completely opaque!
+// Role is an array of rights granted upon entity, or array of another Roles
 //
-
-//
-// Role is an array of rights granted upon entities
-//
-schema.Role = {
+var Role = {
 	type: 'object',
 	additionalProperties: false,
 	properties: {
@@ -55,56 +49,23 @@ schema.Role = {
 			type: 'string',
 			optional: true
 		},
-		rights: {
+		entity: {
+			type: 'string',
+			optional: true
+		},
+		methods: {
 			type: 'array',
 			items: {
-				type: 'object',
-				//
-				// each right defines whether the user can call <entity>.<access> accessor
-				//
-				properties: {
-					entity: {
-						type: 'string',
-						"enum": function() {
-							return _.keys(model);
-						}
-					},
-					access: {
-						type: 'string',
-						"enum": ['query', 'get', 'add', 'update', 'remove', 'delete', 'undelete', 'purge']
-					}
-				}
-			}
-		}
-	}
-};
-
-//
-// Group is a named collection of Roles
-//
-schema.Group = {
-	type: 'object',
-	additionalProperties: false,
-	properties: {
-		id: {
-			type: 'string',
-			veto: {
-				update: true
-			}
-		},
-		name: {
-			type: 'string',
+				type: 'string'
+			},
 			optional: true
 		},
 		roles: {
 			type: 'array',
-			items: _.extend({}, schema.Role.properties.id, {
-				"enum": function(value, next) {
-					return this.Role.get(value, function(err, result) {
-						return next(!result);
-					});
-				}
-			})
+			items: {
+				type: 'string'
+			},
+			optional: true
 		}
 	}
 };
@@ -112,6 +73,12 @@ schema.Group = {
 //
 // generic user entity
 //
+
+var userTypes = {
+	affiliate: 'Affiliate',
+	admin: 'Admin'
+};
+
 var UserEntity = {
 	type: 'object',
 	properties: {
@@ -124,20 +91,14 @@ var UserEntity = {
 		},
 		type: {
 			type: 'string',
-			// TODO: reuse userTypes
-			"enum": ['Admin', 'Affiliate']
+			'enum': _.values(userTypes)
 		},
-		groups: {
+		roles: {
 			type: 'array',
-			items: _.extend({}, schema.Group.properties.id, {
-				"enum": function(value, callback) {
-					// TODO: only allow groups to which parent user belong
-					return this.Group.get(value, function(err, result) {
-						return callback(!result, result);
-					});
-				}
-			}),
-			optional: true
+			items: {
+				type: 'string'
+			},
+			default: []
 		},
 		blocked: {
 			type: 'string',
@@ -145,8 +106,8 @@ var UserEntity = {
 		},
 		status: {
 			type: 'string',
-			"enum": ['pending', 'approved', 'declined'],
-			"default": 'pending'
+			'enum': ['pending', 'approved', 'declined'],
+			default: 'pending'
 		},
 		password: {
 			type: 'string'
@@ -177,27 +138,21 @@ var UserEntity = {
 		timezone: {
 			type: 'string',
 			// TODO: from simple-geo
-			"enum": ['UTC-11', 'UTC-10', 'UTC-09', 'UTC-08', 'UTC-07', 'UTC-06', 'UTC-05', 'UTC-04', 'UTC-03', 'UTC-02', 'UTC-01', 'UTC+00', 'UTC+01', 'UTC+02', 'UTC+03', 'UTC+04', 'UTC+05', 'UTC+06', 'UTC+07', 'UTC+08', 'UTC+09', 'UTC+10', 'UTC+11', 'UTC+12'],
-			"default": 'UTC+04'
-		},
-		lang: _.extend({}, schema.Language.properties.id, {
-			"enum": function(value, next) {
-				return next(null);
-			},
-			optional: true
-		})
+			'enum': ['UTC-11', 'UTC-10', 'UTC-09', 'UTC-08', 'UTC-07', 'UTC-06', 'UTC-05', 'UTC-04', 'UTC-03', 'UTC-02', 'UTC-01', 'UTC+00', 'UTC+01', 'UTC+02', 'UTC+03', 'UTC+04', 'UTC+05', 'UTC+06', 'UTC+07', 'UTC+08', 'UTC+09', 'UTC+10', 'UTC+11', 'UTC+12'],
+			default: 'UTC+04'
+		}
 	}
 };
 
 //
 // User as seen by admins
 //
-schema.User = {
+var User = {
 	type: 'object',
 	properties: {
 		id: UserEntity.properties.id,
 		type: ro(UserEntity.properties.type),
-		groups: UserEntity.properties.groups,
+		roles: UserEntity.properties.roles,
 		blocked: UserEntity.properties.blocked,
 		status: UserEntity.properties.status,
 		password: cr(UserEntity.properties.password),
@@ -205,28 +160,56 @@ schema.User = {
 		tags: UserEntity.properties.tags,
 		name: ro(UserEntity.properties.name),
 		email: ro(UserEntity.properties.email),
-		timezone: ro(UserEntity.properties.timezone),
-		lang: ro(UserEntity.properties.lang)
+		timezone: ro(UserEntity.properties.timezone)
 	}
 };
 
 //
 // User as seen by the user himself
+// TODO: should NOT be exposed
 //
-schema.UserSelf = {
+var UserSelf = {
 	type: 'object',
 	properties: {
 		id: UserEntity.properties.id,
 		type: ro(UserEntity.properties.type),
-		groups: ro(UserEntity.properties.groups),
+		roles: ro(UserEntity.properties.roles),
 		password: wo(UserEntity.properties.password),
 		salt: wo(UserEntity.properties.salt),
 		name: UserEntity.properties.name,
 		email: UserEntity.properties.email,
 		timezone: UserEntity.properties.timezone,
-		lang: UserEntity.properties.lang,
 		secret: UserEntity.properties.secret
 	}
 };
 
-module.exports = schema;
+//
+// generic testing entity
+//
+var Foo = {
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		id: {
+			type: 'string',
+			pattern: '^[a-zA-Z0-9_]+$',
+			veto: {
+				update: true
+			}
+		},
+		name: {
+			type: 'string'
+		},
+		localName: {
+			type: 'string',
+			optional: true
+		}
+	}
+};
+
+module.exports = {
+	Foo: Foo,
+	Role: Role,
+	User: User,
+	UserSelf: UserSelf
+};

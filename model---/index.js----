@@ -1,0 +1,161 @@
+'use strict';
+
+// TODO: beautify
+global._ = require('underscore');
+require('underscore-data');
+var Database = require('../lib/database');
+
+var schema = {}, model = {};
+
+//
+// collect entities schemas
+//
+require('fs').readdirSync(__dirname + '/entities').forEach(function(name){
+	if (name.substr(name.length-3) === '.js') {
+		name = name.substr(0, name.length-3);
+		//if (name === 'index') return;
+		Object.defineProperty(schema, name, {get: function(){
+			return require('./entities/' + name);
+		}, enumerable: true});
+	}
+});
+//console.log('SCHEMA', schema);
+
+//
+// connect to MongoDB instance, register entities
+//
+// N.B. connection is async process
+//
+var db = new Database('', schema, function(err, result){
+	model = result || {};
+});
+
+//
+// collect roles. TODO: should themselves be DB-backed
+//
+var roles = require('./roles');
+//console.log('ROLES', roles);
+
+function collect(roleNames){
+	var res = [];
+	_.each(_.select(roles, function(x){return ~roleNames.indexOf(x.name);}), function(role){
+		//console.log(role);
+		if (role.roles) {
+			var subs = collect(role.roles);
+			res.push.apply(res, subs);
+		}
+		res.push(role);
+	});
+	return res;
+	//return _.unique(res, function(x){return x.name});
+}
+
+function caps(roleNames, justNames){
+	var roles = _.unique(collect(roleNames), function(x){return x.name});
+	if (justNames) roles = _.map(roles, function(x){return x.name});
+	return roles;
+}
+
+function canDelegate(hasRoleNames, roleNames){
+	var hasRoles = caps(hasRoleNames, true);
+	return _.intersect(hasRoles, roleNames);
+}
+
+//
+// given the user, return its capabilities
+//
+/*
+function getCapability(user, next){
+	var ctx = {};
+	try {
+		user.roles.forEach(function(name){
+			roles[name].forEach(function(role){
+				if (!ctx.hasOwnProperty(role.entity)) ctx[role.entity] = {};
+				var obj = model[role.entity];
+				var facet = ctx[role.entity];
+				role.methods.forEach(function(definition){
+					var name, prop;
+					if (Array.isArray(definition)) {
+						name = definition[1];
+						prop = definition[0];
+						if (typeof prop != 'function' || prop.prototype.match) {
+							prop = _.get(obj, prop);
+						}
+					} else {
+						name = definition;
+						prop = obj[name];
+					}
+					if (prop) {
+						Object.defineProperty(facet, name, {get: function(){
+							return prop;//prop.bind(null, ctx);
+						}, enumerable: true});
+					}
+				});
+			});
+		});
+	} catch (err) {
+		// errors result in empty context
+		ctx = {};
+	}
+	Object.defineProperty(ctx, 'user', {value: user});
+	console.log('CAPS', ctx);
+	next(null, ctx);
+}*/
+
+function getCapability(user, next){
+	var ctx = {};
+	try {
+		_.each(caps(user.roles), function(role){
+			var obj = model[role.entity];
+			if (!obj) return;
+			if (!ctx.hasOwnProperty(role.entity)) ctx[role.entity] = {};
+			var facet = ctx[role.entity];
+			_.each(role.methods, function(definition){
+				var name, prop;
+				//console.log('DEF', definition);
+				if (Array.isArray(definition)) {
+					name = definition[1];
+					prop = definition[0];
+					if (typeof prop != 'function' || prop.prototype.match) {
+						prop = _.get(obj, prop);
+					}
+				} else {
+					name = definition;
+					prop = obj[name];
+				}
+				if (prop) {
+					/*Object.defineProperty(facet, name, {get: function(){
+						return prop;//prop.bind(null, ctx);
+					}, enumerable: true});*/
+					Object.defineProperty(facet, name, {value: prop, enumerable: true});
+				}
+			});
+		});
+	} catch (err) {
+		// errors result in empty context
+		console.log('CAPSERROR', err.stack);
+		ctx = {};
+	}
+	Object.defineProperty(ctx, 'user', {value: user});
+	console.log('CAPS', ctx);
+	next(null, ctx);
+}
+
+//
+// expose interface
+//
+module.exports = {
+	getCapability: getCapability
+};
+
+//
+// some tests
+//
+if (!module.parent) {
+	//console.log(_.map(caps(['User-admin', 'Foo-query-remove', 'User-get']), function(x){return x.name}));
+//	console.log(canDelegate(['User-admin', 'Foo-query-remove'], ['User-get']));
+//	console.log(canDelegate(['User-get'], ['User-get']));
+	setTimeout(function(){
+	getCapability({id:'aaa',roles:require('./roles/admin')},function(err,ctx){console.log('CTX',ctx);ctx.Foo.query(ctx, '',console.log)});
+	},500);
+}

@@ -64,7 +64,7 @@ module.exports.form = function setup(mount, options){
 
 		// authentication helper
 		var authenticate = function(err, result){
-			//console.log('WGOT', err, result);
+			//console.log('WGOT', err, result, result.user);
 			// failed? -> remove req.session
 			if (!result) {
 				delete req.session;
@@ -72,7 +72,8 @@ module.exports.form = function setup(mount, options){
 			} else {
 				// TODO: signup unless user exists, and pull info from profile
 				// native form?
-				if (result.id) {
+				if (result.user) {
+					req.session = {uid: result.user.id};
 					// ...
 				// loginza?
 				} else if (result.identity) {
@@ -83,7 +84,6 @@ module.exports.form = function setup(mount, options){
 				}
 				//console.log(result); //preferredUsername, displayName, photo
 				//var uid = 'DUMMYSOFAR';//result.profile.verifiedEmail;
-				req.session = result;//{uid: uid};
 			}
 			// respond, honoring AJAX
 			if (req.xhr) {

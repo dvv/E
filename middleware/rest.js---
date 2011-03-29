@@ -19,6 +19,9 @@ module.exports = function setup(root, getCapabilityFn, options){
 	// setup
 	options = options || {};
 
+	// cache for contexts
+	var cache = {};
+
 	// normalize mount points to always end in /
 	if (root[root.length - 1] !== '/') { root += '/'; }
 
@@ -50,10 +53,23 @@ module.exports = function setup(root, getCapabilityFn, options){
 			function(err, result, step){
 				// N.B. map all falsy users to uid=''
 				var uid = req.session && req.session.uid || '';
-				getCapabilityFn(uid, function(err, context){
-					//console.log('REST', uid, arguments);
-					step(err, context);
-				});
+				// cached context?
+				// TODO: how to invalidate? setInterval() reaper?
+				// TODO: move caching to getCapabilityFn
+				if (cache.hasOwnProperty(uid)) {
+					step(null, cache[uid]);
+				// get and cache context
+				} else {
+					getCapabilityFn(uid, function(err, context){
+						console.log('REST', arguments);
+						// N.B. don't cache negatives
+						if (context) {
+							step(null, cache[uid] = context);
+						} else {
+							step(err);
+						}
+					});
+				}
 			},
 			//
 			// determine the handler method and parameters

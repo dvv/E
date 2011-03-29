@@ -5,19 +5,6 @@ global._ = require('underscore');
 require('underscore-data');
 var Database = require('../lib/database');
 
-function deepCopy(source, target, overwrite){
-	var k, v;
-	for (k in source) if (source.hasOwnProperty(k)) {
-		v = source[k];
-		if (v && typeof v == 'object' && typeof target[k] == 'object') {
-			deepCopy(v, target[k], overwrite);
-		} else if (overwrite || !target.hasOwnProperty(k)) {
-			target[k] = v;
-		}
-	}
-	return target;
-}
-
 //
 // secrets helpers
 //
@@ -222,14 +209,6 @@ Next({}, function(err, result, next){
 	this.model = model; // Object.freeze(model);
 
 	//
-	// derive roles from model
-	//
-	var roles0 = _.map(model, function(accessors, name){
-		return _.compact(_.map(_.keys(accessors), function(method){return method.charAt(0) !== '_' ? name + '-' + method : undefined;}));
-	});
-	console.log('R', roles0);
-
-	//
 	// fetch the roles
 	//
 	//model.Role.query(null, '', next);
@@ -273,7 +252,6 @@ Next({}, function(err, result, next){
 		return _.intersect(hasRoles, roleNames);
 	}
 
-	var fullFacet = {};
 	_.each(_.map(roles, function(x){return x.id}), function(id){
 		var facet = facets[id] = {};
 		_.each(caps([id]), function(role){
@@ -299,9 +277,7 @@ Next({}, function(err, result, next){
 				}
 			});
 		});
-		deepCopy(facet, fullFacet, false);
 	});
-	//console.log('F', fullFacet);
 
 	//
 	// get capability of a user uid
@@ -309,18 +285,7 @@ Next({}, function(err, result, next){
 	function getCapability(uid, next) {
 		Next(null,
 			function(err, result, step) {
-				// TODO: more secure ;)
-				if (uid === 'root') {
-					var user = {
-						id: uid,
-						password: 'foo'
-					};
-					var caps = _.extend({}, fullFacet);
-					Object.defineProperty(caps, 'user', {value: user});
-					next(null, caps);
-				} else {
-					User._get(null, this, uid, step);
-				}
+				User._get(null, this, uid, step);
 			},
 			function(err, user, step) {
 				// get the user level
@@ -332,7 +297,6 @@ Next({}, function(err, result, next){
 				// set context user
 				Object.defineProperty(caps, 'user', {value: user});
 				//
-				//console.log('CAPS', user, caps);
 				next(null, caps);
 			}
 		);

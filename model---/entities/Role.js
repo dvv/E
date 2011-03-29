@@ -1,10 +1,12 @@
 'use strict';
 
+//var db = require('../');
+
 //
 // Role is an array of rights granted upon entities
 //
 
-module.exports = {
+var Role = {
 	type: 'object',
 	additionalProperties: false,
 	properties: {
@@ -32,9 +34,9 @@ module.exports = {
 		roles: {
 			type: 'array',
 			items: {
-				// TODO: here recursively refer module.exports
-				type: 'object'
-			}
+				type: 'string'
+			},
+			optional: true
 		}
 	}
 };
