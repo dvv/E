@@ -105,6 +105,7 @@ module.exports = function setup(options) {
 			} else if (type === 'multipart/form-data') {
 				// setup the form reader
 				var form = new formidable.IncomingForm();
+				// TODO: control ability to upload!
 				form.uploadDir = uploadDir;
 				if (options.maxLength) {
 					form.maxFieldsSize = options.maxLength;

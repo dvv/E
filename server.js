@@ -54,30 +54,13 @@ global.typeOf = function(value) {
 	return s;
 }
 
-/*
-app.configure(function(){
-});
-
-app.configure('development', function(){
-	app.use(express.static(__dirname + '/public'));
-	app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
-});
-
-app.configure('production', function(){
-	var oneYear = 31557600000;
-	app.use(express.static(__dirname + '/public', { maxAge: oneYear }));
-	app.use(express.errorHandler());
-});
-*/
-
 //
 // security provider
 //
 var security = {
+	/*
 	//
 	// dummy caps
-	//
-	// TODO: should belong to cookie-sessions
 	//
 	getCapability: function(uid, next){
 		var context = {
@@ -93,7 +76,7 @@ var security = {
 		// set the user
 		//context.user = user;
 		next(null, context);
-	},
+	},*/
 	//
 	// dummy authentication. should just call next() if ok
 	//
@@ -105,6 +88,14 @@ var security = {
 	}
 };
 
+//
+// get the data model
+//
+var model = require('./model');
+
+//
+// define server middleware
+//
 app.configure(function(){
 
 	// environment flavor
@@ -116,7 +107,7 @@ app.configure(function(){
 	// profiler
 	// N.B. DEBUG only
 	if (debug) {
-		app.use(express.profiler());
+		//app.use(express.profiler());
 	}
 
 	// parse the body to req.body, req.files; parse req.url to req.uri
@@ -151,19 +142,16 @@ app.configure(function(){
         }
 	}));
 
+	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
+
 	// handle manually defined routes
 	app.use(app.router);
 
 	// handle RESTful access
-	app.use(require('./middleware/rest')('', security.getCapability, {
+	app.use(require('./middleware/rest')('', model.getCapability, {
 		putNew: '_new',
 		jsonrpc: true
 	}));
-
-	// handle chrome
-	app.get('/', function(req, res, next){
-		res.render('index', req.context);
-	});
 
 	//app.use(express.compiler(src: 'src', dest: 'lib', enable: ['coffeescript']));
 	// serve static files under ./public directory
@@ -178,11 +166,7 @@ app.configure(function(){
 	});*/
 
 	// nicely catch exceptions
-	if (debug) {
-		app.use(express.errorHandler({dumpExceptions: true, showStack: true}));
-	} else {
-		app.use(express.errorHandler());
-	}
+	app.use(express.errorHandler({dumpExceptions: debug, showStack: debug}));
 });
 
 //
@@ -203,11 +187,39 @@ app.set('view engine', 'html');
 	close: '}}'
 });*/
 
+//
+// handle chrome
+//
+app.get('/', function(req, res, next){
+	res.render('index', req.context);
+});
 
 //
 // run the server
 //
 // TODO: cluster, or my stereo
 //
-app.listen(3000);
-console.log('Listening to *:3000...');
+if (false) {
+var cluster = require('cluster');
+cluster(app)
+	.set('workers', 1)
+	.use(cluster.debug())
+	.use(cluster.reload([__filename, 'middleware']))
+	.use(cluster.stats())
+	.use(cluster.repl(30000))
+	.listen(3000);
+} else {
+	app.listen(3000);
+	console.log('Listening to *:3000...');
+}
+
+/*
+var fs = require('fs');
+var sapp = express.createServer({
+	key: fs.readFileSync('key.pem', 'utf8'),
+	cert: fs.readFileSync('cert.pem', 'utf8')
+});
+sapp.on('request', app.listeners('request')[0]);
+sapp.listen(3001);
+console.log('Listening to *:3001...');
+*/

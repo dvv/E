@@ -1,0 +1,101 @@
+'use strict';
+
+// TODO: beautify
+global._ = require('underscore');
+require('underscore-data');
+var Database = require('../lib/database');
+
+var schema = {}, model = {}, roles = {};
+
+//
+// collect entities schemas
+//
+require('fs').readdirSync(__dirname + '/entities').forEach(function(name){
+	if (name.substr(name.length-3) === '.js') {
+		name = name.substr(0, name.length-3);
+		//if (name === 'index') return;
+		Object.defineProperty(schema, name, {get: function(){
+			return require('./entities/' + name);
+		}, enumerable: true});
+	}
+});
+//console.log('SCHEMA', schema);
+
+//
+// connect to MongoDB instance, register entities
+//
+// N.B. connection is async process
+//
+var db = new Database('', schema, function(err, result){
+	model = result || {};
+});
+
+//
+// collect roles. TODO: should themselves be DB-backed
+//
+require('fs').readdirSync(__dirname + '/roles').forEach(function(name){
+	if (name.substr(name.length-3) === '.js') {
+		name = name.substr(0, name.length-3);
+		//if (name === 'index') return;
+		Object.defineProperty(roles, name, {get: function(){
+			return require('./roles/' + name);
+		}, enumerable: true});
+	}
+});
+//console.log('ROLES', roles);
+
+//
+// given the user, return its capabilities
+//
+function getCapability(user, next){
+	var ctx = {};
+	try {
+		user.roles.forEach(function(name){
+			roles[name].forEach(function(role){
+				if (!ctx.hasOwnProperty(role.entity)) ctx[role.entity] = {};
+				var obj = model[role.entity];
+				var facet = ctx[role.entity];
+				role.methods.forEach(function(definition){
+					var name, prop;
+					if (Array.isArray(definition)) {
+						name = definition[1];
+						prop = definition[0];
+						if (typeof prop != 'function' || prop.prototype.match) {
+							prop = _.get(obj, prop);
+						}
+					} else {
+						name = definition;
+						prop = obj[name];
+					}
+					if (prop) {
+						Object.defineProperty(facet, name, {get: function(){
+							return prop;//prop.bind(null, ctx);
+						}, enumerable: true});
+					}
+				});
+			});
+		});
+	} catch (err) {
+		// errors result in empty context
+		ctx = {};
+	}
+	Object.defineProperty(ctx, 'user', {value: user});
+	console.log('CAPS', ctx);
+	next(null, ctx);
+}
+
+//
+// expose interface
+//
+module.exports = {
+	getCapability: getCapability
+};
+
+//
+// some tests
+//
+if (!module.parent) {
+	setTimeout(function(){
+	getCapability({id:'aaa',roles:['admin']},function(err,ctx){console.log('CTX',ctx);ctx.Foo.query(ctx, '',console.log)});
+	},500);
+}

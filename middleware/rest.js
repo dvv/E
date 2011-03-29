@@ -55,6 +55,7 @@ module.exports = function setup(root, getCapabilityFn, options){
 				var uid = req.session && req.session.uid || '';
 				// cached context?
 				// TODO: how to invalidate? setInterval() reaper?
+				// TODO: move caching to getCapabilityFn
 				if (cache.hasOwnProperty(uid)) {
 					step(null, cache[uid]);
 				// get and cache context

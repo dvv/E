@@ -48,7 +48,13 @@ module.exports.form = function setup(mount, options){
 
 		// GET -- render authentication page
 		if (req.method === 'GET') {
-			res.render('auth', options);
+			res.render('auth', {
+				janrain: {
+					domain: options.janrain.domain
+				},
+				tokenUrl: escape('http://dvv.dyndns.org:3000/auth&lang=ru')
+				//http%3A%2F%2Fdvv.dyndns.org%3A3000%2Fauth&lang=ru
+			});
 			return;
 		}
 

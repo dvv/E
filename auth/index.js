@@ -7,6 +7,11 @@ global.extend = function extend(obj) {
 	return obj;
 };
 
+// TODO: beautify
+global._ = require('underscore');
+require('underscore-data');
+var db = require('../lib/database');
+
 function drill(obj, path, remove) {
 	var index, name, orig, part, _i, _j, _len, _len2, _ref;
 	if (Array.isArray(path)) {
@@ -70,7 +75,10 @@ require('fs').readdirSync('model').forEach(function(name){
 	if (name.substr(name.length-3) === '.js') {
 		name = name.substr(0, name.length-3);
 		Object.defineProperty(model, name, {get: function(){
-			return require('./model/' + name);
+			//return require('./model/' + name);
+			var ret = undefined;
+			db.register([require('./model/' + name)], function(m){ret = m;});
+			return ret;
 		}, enumerable: true});
 	}
 });
