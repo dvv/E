@@ -1,7 +1,7 @@
 'use strict';
 
 //
-// helpers to restrict access to properties
+// helpers to tune properties
 //
 
 // read-only
@@ -13,22 +13,48 @@ function ro(attr) {
 	});
 }
 
+// query-only
+function qo(attr) {
+	return _.extend({}, attr, {
+		veto: {
+			get: true,
+			update: true
+		}
+	});
+}
+
 // write-only
 function wo(attr) {
 	return _.extend({}, attr, {
 		veto: {
+			query: true,
 			get: true
 		}
 	});
 }
 
 // create-only
-function cr(attr) {
+function co(attr) {
 	return _.extend({}, attr, {
 		veto: {
+			query: true,
 			get: true,
 			update: true
 		}
+	});
+}
+
+// fix the value
+function fix(attr, value) {
+	return _.extend({}, attr, {
+		value: value
+	});
+}
+
+// set default value
+function def(attr, value) {
+	return _.extend({}, attr, {
+		default: value
 	});
 }
 
@@ -91,7 +117,7 @@ var UserEntity = {
 		},
 		type: {
 			type: 'string',
-			'enum': _.values(userTypes)
+			'enum': _.keys(userTypes)
 		},
 		roles: {
 			type: 'array',
@@ -110,7 +136,11 @@ var UserEntity = {
 			default: 'pending'
 		},
 		password: {
-			type: 'string'
+			type: 'string',
+			/*onSet: function(doc, value){
+				doc.salt = nonce();
+				value = encryptPassword(value, doc.salt);
+			}*/
 		},
 		salt: {
 			type: 'string'
@@ -124,7 +154,7 @@ var UserEntity = {
 			items: {
 				type: 'string'
 			},
-			optional: true
+			default: []
 		},
 		name: {
 			type: 'string',
@@ -145,30 +175,58 @@ var UserEntity = {
 };
 
 //
-// User as seen by admins
+// Admin
 //
-var User = {
+var Admin = {
 	type: 'object',
 	properties: {
 		id: UserEntity.properties.id,
-		type: ro(UserEntity.properties.type),
-		roles: UserEntity.properties.roles,
+		type: fix(ro(UserEntity.properties.type), 'admin'),
+		roles: def(UserEntity.properties.roles, ['Admin-author']),
 		blocked: UserEntity.properties.blocked,
 		status: UserEntity.properties.status,
-		password: cr(UserEntity.properties.password),
-		salt: cr(UserEntity.properties.salt),
+		password: co(UserEntity.properties.password),
+		salt: co(UserEntity.properties.salt),
 		tags: UserEntity.properties.tags,
 		name: ro(UserEntity.properties.name),
 		email: ro(UserEntity.properties.email),
 		timezone: ro(UserEntity.properties.timezone)
-	}
+	},
+	collection: 'User',
+	constraints: [
+		{key: 'type', value: 'admin', op: 'eq'}
+	]
+};
+
+//
+// Affiliate
+//
+var Affiliate = {
+	type: 'object',
+	properties: {
+		id: UserEntity.properties.id,
+		type: fix(ro(UserEntity.properties.type), 'affiliate'),
+		roles: def(UserEntity.properties.roles, ['Affiliate-author']),
+		blocked: UserEntity.properties.blocked,
+		status: UserEntity.properties.status,
+		password: co(UserEntity.properties.password),
+		salt: co(UserEntity.properties.salt),
+		tags: UserEntity.properties.tags,
+		name: ro(UserEntity.properties.name),
+		email: ro(UserEntity.properties.email),
+		timezone: ro(UserEntity.properties.timezone)
+	},
+	collection: 'User',
+	constraints: [
+		{key: 'type', value: 'affiliate', op: 'eq'}
+	]
 };
 
 //
 // User as seen by the user himself
 // TODO: should NOT be exposed
 //
-var UserSelf = {
+var User = {
 	type: 'object',
 	properties: {
 		id: UserEntity.properties.id,
@@ -180,7 +238,8 @@ var UserSelf = {
 		email: UserEntity.properties.email,
 		timezone: UserEntity.properties.timezone,
 		secret: UserEntity.properties.secret
-	}
+	},
+	collection: 'User'
 };
 
 //
@@ -208,8 +267,9 @@ var Foo = {
 };
 
 module.exports = {
-	Foo: Foo,
 	Role: Role,
 	User: User,
-	UserSelf: UserSelf
+	Admin: Admin,
+	Affiliate: Affiliate,
+	Foo: Foo,
 };

@@ -50,19 +50,55 @@ Next({}, function(err, result, next){
 		},
 	}, next);
 
-}, function(err, result, next){
+}, function(err, result, next) {
 
 	//console.log(arguments);
 
 	var model = result || {};
 	this.model = model;
 	roles = {};
-	_.each(model, function(v, k){
-		_.each(v.roles, function(m, n){
-			var o = {};
-			o[k] = m;
-			roles[n] = o;
+	_.each(model, function(store, name) {
+		function prop(value) {
+			var r = {};
+			r[name]= value;
+			return r;
+		}
+		roles["" + name + "-reader"] = prop({
+			query: store.queryAny,
+			get: store.getAny
 		});
+		roles["" + name + "-creator"] = prop({
+			query: store.queryAny,
+			add: store.add
+		});
+		roles["" + name + "-author"] = prop({
+			query: store.queryOwn,
+			get: store.getOwn,
+			add: store.add,
+			update: store.updateOwn,
+			remove: store.removeOwn
+		});
+		roles["" + name + "-editor"] = prop({
+			query: store.queryAny,
+			get: store.getAny,
+			add: store.add,
+			update: store.updateAny,
+			remove: store.removeAny
+		});
+		if (store.deleteOwn) {
+			_.extend(roles["" + name + "-author"], prop({
+				"delete": store.deleteOwn,
+				undelete: store.undeleteOwn,
+				purge: store.purgeOwn
+			}));
+		}
+		if (store.deleteAny) {
+			_.extend(roles["" + name + "-editor"], prop({
+				"delete": store.deleteAny,
+				undelete: store.undeleteAny,
+				purge: store.purgeAny
+			}));
+		}
 	});
 	//this.roles = roles;
 	console.log(roles);

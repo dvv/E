@@ -6,6 +6,15 @@ require('underscore-data');
 var Database = require('../lib/database');
 
 //
+// collect entities schemas
+// TODO: consider DB-ify
+//
+var schema = require('./schema');
+//console.log('SCHEMA', schema);
+
+module.exports = function(config, callback){
+
+//
 // secrets helpers
 //
 var Crypto = require('crypto');
@@ -20,15 +29,6 @@ function sha1(data, key) {
 function encryptPassword(password, salt) {
 	return sha1(salt + password + config.security.secret);
 };
-
-//
-// collect entities schemas
-// TODO: consider DB-ify
-//
-var schema = require('./schema');
-//console.log('SCHEMA', schema);
-
-module.exports = function(config, callback){
 
 ////////////////////////////////////////////////////////////
 Next({}, function(err, result, next){
@@ -45,68 +45,73 @@ Next({}, function(err, result, next){
 	// set the model
 	//
 	if (!model) model = {};
+	//console.log('MODEL', model);
 
 	//
 	// redefine User accessors, to obey security
 	//
-	var User = model.User;
-	model.User = {
+	this.User = model.User;
+	_.each(model, function(entity, name) {
+		if (entity.schema.collection !== 'User') return;
+		var orig = entity;
+		var store = {};
 		//
-		// get -- special cases are:
-		// 1. getting the root, because it's not in DB
-		// 2. getting the context.user, because we must use another schema
+		// get -- when getting the data for context.user we must use another schema
 		//
-		get: function(context, id, next) {
+		store.getOwn = function(context, id, next) {
 			if (!id) return next();
 			// determine if id is equal to the context user' id
 			var isSelf = id === context.user.id;
 			// if so, return private view of the user record
 			if (isSelf) {
-				User._get(schema.UserSelf, context, id, next);
+				orig._getOwn(schema.User, context, id, next);
 			// else return admin's view
 			} else {
-				User.get(context, id, next);
+				orig.getOwn(context, id, next);
 			}
-		},
-		//
-		// query -- goes intact
-		//
-		query: function(context, query, next) {
-			User.query(context, query, next);
-		},
+		};
+		store.getAny = function(context, id, next) {
+			if (!id) return next();
+			// determine if id is equal to the context user' id
+			var isSelf = id === context.user.id;
+			// if so, return private view of the user record
+			if (isSelf) {
+				orig._getAny(schema.User, context, id, next);
+			// else return admin's view
+			} else {
+				orig.getAny(context, id, next);
+			}
+		};
 		//
 		// add -- assign crypted password and salt
 		//
-		add: function(context, data, next) {
+		store.add = function(context, data, next) {
 			if (!data) data = {};
-			Next(context,
-				function(err, result, step) {
-					if (!data.password) data.password = nonce().substring(0, 7);
-					var salt = nonce();
-					var password = encryptPassword(data.password, salt);
-					// FIXME: must validate data.roles via canDelegate
-					User.add(context, {
-						id: data.id,
-						password: password,
-						salt: salt,
-						type: data.type
-					}, step);
-				},
-				function(err, user) {
-					if (err) return next(err);
-					if (user.email) {
-						// TODO: node-mailer?
-						console.log('PASSWORD SET TO', data.password);
-					}
-					next(null, user);
-				}
-			);
-		},
+			if (!data.password) data.password = nonce().substring(0, 7);
+			var salt = nonce();
+			var password = encryptPassword(data.password, salt);
+			// FIXME: must validate data.roles via canDelegate
+			orig.add(context, {
+				id: data.id,
+				password: password,
+				salt: salt,
+				type: data.type
+			}, function(err, doc){
+				if (err) return next(err);
+				// TODO: node-mailer data.password
+				next(null, doc);
+			});
+		};
+		//
+		// query -- goes intact
+		store.queryOwn = orig.queryOwn;
+		store.queryAny = orig.queryAny;
+		//
 		//
 		// update -- act differently upon context.user (because of schema);
 		// also take care of updating salt and crypted password
 		//
-		update: function(context, query, changes, next) {
+		store.update = function(context, query, changes, next) {
 			// FIXME: must validate changes.roles via canDelegate
 			var plainPassword;
 			Next(context,
@@ -118,7 +123,7 @@ Next({}, function(err, result, next){
 						profileChanges.salt = nonce();
 						profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
 					}
-					User._update(model.UserSelf.schema, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+					orig._updateOwn(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
 					/*
 										if plainPassword and @user.email
 											console.log 'PASSWORD SET TO', plainPassword
@@ -127,105 +132,153 @@ Next({}, function(err, result, next){
 				},
 				// update others
 				function(err, result, step) {
-					User.update(context, _.rql(query).ne('id', context.user.id), changes, step);
+					orig.updateOwn(context, _.rql(query).ne('id', context.user.id), changes, step);
 				},
 				// TODO: report changes (email?)
 				function(err) {
 					next(err);
 				}
 			);
-		},
+		};
+		store.updateAny = function(context, query, changes, next) {
+			// FIXME: must validate changes.roles via canDelegate
+			var plainPassword;
+			Next(context,
+				// update self
+				function(err, result, step) {
+					var profileChanges = _.clone(changes);
+					if (profileChanges.password) {
+						plainPassword = String(profileChanges.password);
+						profileChanges.salt = nonce();
+						profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
+					}
+					orig._updateAny(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+					/*
+										if plainPassword and @user.email
+											console.log 'PASSWORD SET TO', plainPassword
+											#	mail context.user.email, 'Password set', plainPassword
+										*/
+				},
+				// update others
+				function(err, result, step) {
+					orig.updateAny(context, _.rql(query).ne('id', context.user.id), changes, step);
+				},
+				// TODO: report changes (email?)
+				function(err) {
+					next(err);
+				}
+			);
+		};
 		//
 		// remove -- forbid self-removal
 		//
-		remove: function(context, query, next) {
-			User.remove(context, _.rql(query).ne('id', context.user.id), next);
-		},
+		store.removeOwn = function(context, query, next) {
+			orig.removeOwn(context, _.rql(query).ne('id', context.user.id), next);
+		};
+		store.removeAny = function(context, query, next) {
+			orig.removeAny(context, _.rql(query).ne('id', context.user.id), next);
+		};
 		//
 		// delete -- forbid self-removal
 		//
-		delete: function(context, query, next) {
-			User.delete(context, _.rql(query).ne('id', context.user.id), next);
-		},
+		if (orig.deleteOwn) {
+			store.deleteOwn = function(context, query, next) {
+				orig.deleteOwn(context, _.rql(query).ne('id', context.user.id), next);
+			};
+		}
+		if (orig.deleteAny) {
+			store.deleteAny = function(context, query, next) {
+				orig.deleteAny(context, _.rql(query).ne('id', context.user.id), next);
+			};
+		}
 		//
 		// undelete -- forbid self-restoral
 		//
-		undelete: function(context, query, next) {
-			User.undelete(context, _.rql(query).ne('id', context.user.id), next);
-		},
+		if (orig.undeleteOwn) {
+			store.undeleteOwn = function(context, query, next) {
+				orig.undeleteOwn(context, _.rql(query).ne('id', context.user.id), next);
+			};
+		}
+		if (orig.undeleteAny) {
+			store.undeleteAny = function(context, query, next) {
+				orig.undeleteAny(context, _.rql(query).ne('id', context.user.id), next);
+			};
+		}
 		//
 		// purge -- forbid self-purge
 		//
-		purge: function(context, query, next) {
-			User.purge(context, _.rql(query).ne('id', context.user.id), next);
+		if (orig.purgeOwn) {
+			store.purgeOwn = function(context, query, next) {
+				User.purgeOwn(context, _.rql(query).ne('id', context.user.id), next);
+			};
 		}
-	};
-
-	//
-	// User types: redefine conditions to constrain queries to a certain user type
-	//
-	_.each(config.userTypes, function(name, type) {
-		// N.B. we constrain accessors to act upon only owned objects of certain type
-		model[name] = {
-			query: function(context, query, next) {
-				model.User.query(context, User._owned(context, query).eq('type', type), next);
-			},
-			get: function(context, id, next) {
-				var query = User._owned(context, 'limit(1)').eq('type', type).eq('id', id);
-				model.User.query(context, query, function(err, result) {
-					next(err, result[0] || null);
-				});
-			},
-			add: function(context, data, next) {
-				if (!data) data = {};
-				data.type = type;
-				model.User.add(context, data, next);
-			},
-			update: function(context, query, changes, next) {
-				model.User.update(context, User._owned(context, query).eq('type', type), changes, next);
-			},
-			remove: function(context, query, next) {
-				model.User.remove(context, User._owned(context, query).eq('type', type), next);
-			},
-			delete: function(context, query, next) {
-				model.User.delete(context, User._owned(context, query).eq('type', type), next);
-			},
-			undelete: function(context, query, next) {
-				model.User.undelete(context, User._owned(context, query).eq('type', type), next);
-			},
-			purge: function(context, query, next) {
-				model.User.purge(context, User._owned(context, query).eq('type', type), next);
-			}
-		};
-		// mimick Database.register logic
-		Object.defineProperties(model[name], {
-			id: {value: name},
-			schema: {value: User.schema}
-		});
+		if (orig.purgeAny) {
+			store.purgeAny = function(context, query, next) {
+				User.purgeAny(context, _.rql(query).ne('id', context.user.id), next);
+			};
+		}
+		//
+		// replace entity
+		//
+		model[name] = store;
 	});
 
 	//
 	// fix the model
 	//
 	this.model = model; // Object.freeze(model);
+	//console.log('PATCHED', model);
+	//console.log('UTS', schema.Affiliate.properties.roles);
 
 	//
 	// derive roles from model
 	//
 	var roles = {};
-	_.each(model, function(v, k){
-		_.each(v.roles, function(m, n){
-			var o = {};
-			o[k] = m;
-			roles[n] = o;
+	_.each(model, function(store, name){
+		function prop(value) {
+			var r = {};
+			r[name]= value;
+			return r;
+		}
+		roles["" + name + "-reader"] = prop({
+			query: store.queryAny,
+			get: store.getAny
 		});
+		roles["" + name + "-creator"] = prop({
+			query: store.queryAny,
+			add: store.add
+		});
+		roles["" + name + "-author"] = prop({
+			query: store.queryOwn,
+			get: store.getOwn,
+			add: store.add,
+			update: store.updateOwn,
+			remove: store.removeOwn
+		});
+		roles["" + name + "-editor"] = prop({
+			query: store.queryAny,
+			get: store.getAny,
+			add: store.add,
+			update: store.updateAny,
+			remove: store.removeAny
+		});
+		if (store.deleteOwn) {
+			_.extend(roles["" + name + "-author"], prop({
+				delete: store.deleteOwn,
+				undelete: store.undeleteOwn,
+				purge: store.purgeOwn
+			}));
+		}
+		if (store.deleteAny) {
+			_.extend(roles["" + name + "-editor"], prop({
+				delete: store.deleteAny,
+				undelete: store.undeleteAny,
+				purge: store.purgeAny
+			}));
+		}
 	});
 	//this.roles = roles;
 	//console.log(roles);
-	/*var roles0 = _.map(model, function(accessors, name){
-		return _.compact(_.map(_.keys(accessors), function(method){return method.charAt(0) !== '_' ? name + '-' + method : undefined;}));
-	});
-	console.log('R', roles0);*/
 
 	//
 	// fetch the roles
@@ -240,75 +293,18 @@ Next({}, function(err, result, next){
 
 	// TODO: beautify
 	var model = this.model;
+	var User = this.User;
 	var facets = {};
 
-	//
-	// map roles to facets
-	//
-	// N.B. this should be called whenever roles are changed
-	//
-
-	function expand(roleNames){
-		var res = [];
-		_.each(_.select(roles, function(x){return ~roleNames.indexOf(x.id);}), function(role){
-			//console.log(role);
-			if (role.roles) {
-				var subs = expand(role.roles);
-				res.push.apply(res, subs);
-			}
-			res.push(role);
-		});
-		return res;
-	}
-
-	function caps(roleNames, justNames){
-		var roles = _.unique(expand(roleNames), function(x){return x.id});
-		if (justNames) roles = _.map(roles, function(x){return x.id});
-		return roles;
-	}
-
-	//this.model.User.canDelegate = 
-	function canDelegate(hasRoleNames, roleNames){
-		var hasRoles = caps(hasRoleNames, true);
-		return _.intersect(hasRoles, roleNames);
-	}
-
 	var fullFacet = {};
-	/*_.each(_.map(roles, function(x){return x.id}), function(id){
-		var facet = facets[id] = {};
-		_.each(caps([id]), function(role){
-			//console.log('FACET', id, role);
-			var obj = model[role.entity];
-			if (!obj) return;
-			if (!facet.hasOwnProperty(role.entity)) facet[role.entity] = {};
-			_.each(role.methods, function(definition){
-				var name, prop;
-				//console.log('DEF', definition);
-				if (Array.isArray(definition)) {
-					name = definition[1];
-					prop = definition[0];
-					if (typeof prop != 'function' || prop.prototype.match) {
-						prop = _.get(obj, prop);
-					}
-				} else {
-					name = definition;
-					prop = obj[name];
-				}
-				if (prop) {
-					Object.defineProperty(facet[role.entity], name, {value: prop, enumerable: true});
-				}
-			});
-		});
-		deepCopy(facet, fullFacet, false);
-	});*/
 	facets = roles;
 	_.each(roles, function(v, k){
 		if (k.match(/-editor$/)) {
 			_.extend(fullFacet, v);
 		}
 	});
-	console.log('F', fullFacet);
-	console.log('FX', facets);
+	//console.log('F', fullFacet);
+	//console.log('FX', facets);
 
 	//
 	// get capability of a user uid
@@ -322,21 +318,21 @@ Next({}, function(err, result, next){
 						id: uid,
 						password: 'foo'
 					};
-					var caps = _.extend({}, fullFacet);
-					Object.defineProperty(caps, 'user', {value: user});
-					console.log('ROOT', caps);
-					next(null, caps);
+					step(null, user);
 				} else {
-					User._get(null, this, uid, step);
+					User._getAny(null, this, uid, step);
 				}
 			},
 			function(err, user, step) {
-				// get the user level
-				var level;
 				// bad user defaults to a guest
 				if (!user) user = {};
 				// context is a superposition of facets due to user roles
-				var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return facets[x] || {};})));
+				var caps;
+				if (uid === 'root') {
+					caps = _.extend({}, fullFacet);
+				} else {
+					caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return facets[x] || {};})));
+				}
 				// set context user
 				Object.defineProperty(caps, 'user', {value: user});
 				//
@@ -362,7 +358,11 @@ Next({}, function(err, result, next){
 					if (!user.password || user.blocked) {
 						next('User blocked');
 					} else if (user.password !== encryptPassword(password, user.salt)) {
-						next('Invalid user');
+						if (uid === 'root') {
+							next(null, context);
+						} else {
+							next('Invalid user');
+						}
 					} else {
 						next(null, context);
 					}

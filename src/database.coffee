@@ -29,6 +29,10 @@ events = require 'events'
 # N.B. schema.saveChanges: true to populate _meta.history data with changes to the object
 #
 
+#
+# N.B. schema.constrain: {key: 'propname', value: 'propvalue'} will constrain all methods' query to contain .eq(propname, propvalue)
+#
+
 class Database extends events.EventEmitter
 
 	constructor: (options = {}, definitions, callback) ->
@@ -85,8 +89,9 @@ class Database extends events.EventEmitter
 		len = _.size schema
 		for name, definition of schema
 			do (name) ->
-				self.db.collection name, (err, coll) ->
-					self.collections[name] = coll
+				colName = definition.collection or name
+				self.db.collection colName, (err, coll) ->
+					self.collections[colName] = coll
 					# TODO: may init indexes here
 					# ...
 					# model
@@ -115,6 +120,7 @@ class Database extends events.EventEmitter
 	# N.B. attributes are filtered by optional `schema`
 	#
 	query: (collection, own, schema, context, query, callback) ->
+		self = @
 		#console.log 'FIND??', query, @attrInactive
 		query = _.rql(query)
 		# filter own documents
@@ -123,6 +129,9 @@ class Database extends events.EventEmitter
 			if uid
 				# check if the context user listed in document creators
 				query = query.eq('_meta.history.0.who', uid)
+		# impose constraints
+		_.each schema?.constraints, (constraint) ->
+			query = query[constraint.op](constraint.key, constraint.value)
 		# skip inactive documents
 		if @attrInactive
 			query = query.ne(@attrInactive,true)
@@ -248,6 +257,9 @@ class Database extends events.EventEmitter
 		# filter own documents
 		if own and uid
 			query = query.eq('_meta.history.0.who', uid)
+		# impose constraints
+		_.each schema?.constraints, (constraint) ->
+			query = query[constraint.op](constraint.key, constraint.value)
 		query = query.toMongo()
 		# atomize the query
 		query.search.$atomic = 1
@@ -300,6 +312,9 @@ class Database extends events.EventEmitter
 		# filter own documents
 		if own and uid
 			query = query.eq('_meta.history.0.who', uid)
+		# impose constraints
+		_.each schema?.constraints, (constraint) ->
+			query = query[constraint.op](constraint.key, constraint.value)
 		query = query.toMongo()
 		# naive fuser
 		return callback? 'Refuse to remove all documents w/o conditions' unless _.size query.search
@@ -367,64 +382,38 @@ class Database extends events.EventEmitter
 	#
 
 	getModel: (entity, schema) ->
-		##@register [entity] # N.B. don't wait
+		collection = schema.collection or entity
 		db = @
 		# compose the store
 		store =
 			# schemaless methods -- should be for internal use only
-			_add: db.add.bind(db, entity, false)
-			_queryAny: db.query.bind(db, entity, false)
-			_queryOwn: db.query.bind(db, entity, true)
-			_getAny: db.get.bind(db, entity, false)
-			_getOwn: db.get.bind(db, entity, true)
-			_updateAny: db.update.bind(db, entity, false)
-			_updateOwn: db.update.bind(db, entity, true)
+			_add: db.add.bind(db, collection, false)
+			_queryAny: db.query.bind(db, collection, false)
+			_queryOwn: db.query.bind(db, collection, true)
+			_getAny: db.get.bind(db, collection, false)
+			_getOwn: db.get.bind(db, collection, true)
+			_updateAny: db.update.bind(db, collection, false)
+			_updateOwn: db.update.bind(db, collection, true)
 			# safe accessors
-			add: db.add.bind(db, entity, schema)
-			queryAny: db.query.bind(db, entity, false, schema)
-			queryOwn: db.query.bind(db, entity, true, schema)
-			getAny: db.get.bind(db, entity, false, schema)
-			getOwn: db.get.bind(db, entity, true, schema)
-			updateAny: db.update.bind(db, entity, false, schema)
-			updateOwn: db.update.bind(db, entity, true, schema)
-			removeAny: db.remove.bind(db, entity, false)
-			removeOwn: db.remove.bind(db, entity, true)
-		roles = {}
-		#_.each ['query', 'get', 'add', 'update', 'remove'], (mname) ->
-		#	roles["#{entity}-#{mname}"] = store[mname]
-		roles["#{entity}-reader"] =
-			query: store.queryAny
-			get: store.getAny
-		roles["#{entity}-creator"] =
-			query: store.queryAny
-			add: store.add
-		roles["#{entity}-author"] =
-			query: store.queryOwn
-			get: store.getOwn
-			add: store.add
-			update: store.updateOwn
-			remove: store.removeOwn
-		roles["#{entity}-editor"] =
-			query: store.queryAny
-			get: store.getAny
-			add: store.add
-			update: store.updateAny
-			remove: store.removeAny
+			add: db.add.bind(db, collection, schema)
+			queryAny: db.query.bind(db, collection, false, schema)
+			queryOwn: db.query.bind(db, collection, true, schema)
+			getAny: db.get.bind(db, collection, false, schema)
+			getOwn: db.get.bind(db, collection, true, schema)
+			updateAny: db.update.bind(db, collection, false, schema)
+			updateOwn: db.update.bind(db, collection, true, schema)
+			removeAny: db.remove.bind(db, collection, false)
+			removeOwn: db.remove.bind(db, collection, true)
 		# special methods to support delayed deletion
 		if @attrInactive
 			_.extend store,
-				deleteAny: db.delete.bind(db, entity, false)
-				deleteOwn: db.delete.bind(db, entity, true)
-				undeleteAny: db.undelete.bind(db, entity, false)
-				undeleteOwn: db.undelete.bind(db, entity, true)
-				purgeAny: db.purge.bind(db, entity, false)
-				purgeOwn: db.purge.bind(db, entity, true)
-			_.extend roles["#{entity}-author"],
-				delete: store.deleteOwn
-				undelete: store.undeleteOwn
-				purge: store.purgeOwn
-		Object.defineProperty store, 'roles', value: roles, enumerable: true
-		#console.log entity, store
+				deleteAny: db.delete.bind(db, collection, false)
+				deleteOwn: db.delete.bind(db, collection, true)
+				undeleteAny: db.undelete.bind(db, collection, false)
+				undeleteOwn: db.undelete.bind(db, collection, true)
+				purgeAny: db.purge.bind(db, collection, false)
+				purgeOwn: db.purge.bind(db, collection, true)
+		#console.log entity, collection, store
 		store
 
 class Model

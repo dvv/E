@@ -74,9 +74,11 @@
       self = this;
       len = _.size(schema);
       _fn = function(name) {
-        self.db.collection(name, function(err, coll) {
+        var colName;
+        colName = definition.collection || name;
+        self.db.collection(colName, function(err, coll) {
           var k, store, v, _ref;
-          self.collections[name] = coll;
+          self.collections[colName] = coll;
           store = self.getModel(name, definition);
           if (definition != null ? definition.prototype : void 0) {
             _ref = definition.prototype;
@@ -107,7 +109,8 @@
       }
     };
     Database.prototype.query = function(collection, own, schema, context, query, callback) {
-      var uid;
+      var self, uid;
+      self = this;
       query = _.rql(query);
       if (own) {
         uid = context && context.user && context.user.id;
@@ -115,6 +118,9 @@
           query = query.eq('_meta.history.0.who', uid);
         }
       }
+      _.each(schema != null ? schema.constraints : void 0, function(constraint) {
+        return query = query[constraint.op](constraint.key, constraint.value);
+      });
       if (this.attrInactive) {
         query = query.ne(this.attrInactive, true);
       }
@@ -268,6 +274,9 @@
       if (own && uid) {
         query = query.eq('_meta.history.0.who', uid);
       }
+      _.each(schema != null ? schema.constraints : void 0, function(constraint) {
+        return query = query[constraint.op](constraint.key, constraint.value);
+      });
       query = query.toMongo();
       query.search.$atomic = 1;
       Next(self, function(err, result, next) {
@@ -325,6 +334,9 @@
       if (own && uid) {
         query = query.eq('_meta.history.0.who', uid);
       }
+      _.each(typeof schema != "undefined" && schema !== null ? schema.constraints : void 0, function(constraint) {
+        return query = query[constraint.op](constraint.key, constraint.value);
+      });
       query = query.toMongo();
       if (!_.size(query.search)) {
         return typeof callback == "function" ? callback('Refuse to remove all documents w/o conditions') : void 0;
@@ -376,68 +388,37 @@
       }
     };
     Database.prototype.getModel = function(entity, schema) {
-      var db, roles, store;
+      var collection, db, store;
+      collection = schema.collection || entity;
       db = this;
       store = {
-        _add: db.add.bind(db, entity, false),
-        _queryAny: db.query.bind(db, entity, false),
-        _queryOwn: db.query.bind(db, entity, true),
-        _getAny: db.get.bind(db, entity, false),
-        _getOwn: db.get.bind(db, entity, true),
-        _updateAny: db.update.bind(db, entity, false),
-        _updateOwn: db.update.bind(db, entity, true),
-        add: db.add.bind(db, entity, schema),
-        queryAny: db.query.bind(db, entity, false, schema),
-        queryOwn: db.query.bind(db, entity, true, schema),
-        getAny: db.get.bind(db, entity, false, schema),
-        getOwn: db.get.bind(db, entity, true, schema),
-        updateAny: db.update.bind(db, entity, false, schema),
-        updateOwn: db.update.bind(db, entity, true, schema),
-        removeAny: db.remove.bind(db, entity, false),
-        removeOwn: db.remove.bind(db, entity, true)
-      };
-      roles = {};
-      roles["" + entity + "-reader"] = {
-        query: store.queryAny,
-        get: store.getAny
-      };
-      roles["" + entity + "-creator"] = {
-        query: store.queryAny,
-        add: store.add
-      };
-      roles["" + entity + "-author"] = {
-        query: store.queryOwn,
-        get: store.getOwn,
-        add: store.add,
-        update: store.updateOwn,
-        remove: store.removeOwn
-      };
-      roles["" + entity + "-editor"] = {
-        query: store.queryAny,
-        get: store.getAny,
-        add: store.add,
-        update: store.updateAny,
-        remove: store.removeAny
+        _add: db.add.bind(db, collection, false),
+        _queryAny: db.query.bind(db, collection, false),
+        _queryOwn: db.query.bind(db, collection, true),
+        _getAny: db.get.bind(db, collection, false),
+        _getOwn: db.get.bind(db, collection, true),
+        _updateAny: db.update.bind(db, collection, false),
+        _updateOwn: db.update.bind(db, collection, true),
+        add: db.add.bind(db, collection, schema),
+        queryAny: db.query.bind(db, collection, false, schema),
+        queryOwn: db.query.bind(db, collection, true, schema),
+        getAny: db.get.bind(db, collection, false, schema),
+        getOwn: db.get.bind(db, collection, true, schema),
+        updateAny: db.update.bind(db, collection, false, schema),
+        updateOwn: db.update.bind(db, collection, true, schema),
+        removeAny: db.remove.bind(db, collection, false),
+        removeOwn: db.remove.bind(db, collection, true)
       };
       if (this.attrInactive) {
         _.extend(store, {
-          deleteAny: db["delete"].bind(db, entity, false),
-          deleteOwn: db["delete"].bind(db, entity, true),
-          undeleteAny: db.undelete.bind(db, entity, false),
-          undeleteOwn: db.undelete.bind(db, entity, true),
-          purgeAny: db.purge.bind(db, entity, false),
-          purgeOwn: db.purge.bind(db, entity, true)
-        });
-        _.extend(roles["" + entity + "-author"], {
-          "delete": store.deleteOwn,
-          undelete: store.undeleteOwn,
-          purge: store.purgeOwn
+          deleteAny: db["delete"].bind(db, collection, false),
+          deleteOwn: db["delete"].bind(db, collection, true),
+          undeleteAny: db.undelete.bind(db, collection, false),
+          undeleteOwn: db.undelete.bind(db, collection, true),
+          purgeAny: db.purge.bind(db, collection, false),
+          purgeOwn: db.purge.bind(db, collection, true)
         });
       }
-      Object.defineProperty(store, 'roles', {
-        value: roles,
-        enumerable: true
-      });
       return store;
     };
     return Database;
