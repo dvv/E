@@ -85,6 +85,7 @@ module.exports.form = function setup(mount, options){
 				//console.log(result); //preferredUsername, displayName, photo
 				//var uid = 'DUMMYSOFAR';//result.profile.verifiedEmail;
 			}
+			console.log('SESS', req.session);
 			// respond, honoring AJAX
 			if (req.xhr) {
 				res.send(req.session);
