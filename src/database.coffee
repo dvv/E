@@ -193,10 +193,11 @@ class Database extends events.EventEmitter
 	#
 	add: (collection, schema, context, document = {}, callback) ->
 		self = @
-		uid = context and context.user and context.user.id
 		# assign new primary key unless specified
-		# FIXME: what if id is required?
 		document.id = @idFactory() unless document.id
+		# get the context user
+		uid = context and context.user and context.user.id
+		#
 		Next self,
 			(err, result, next) ->
 				#console.error 'BEFOREADD', document, schema

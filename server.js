@@ -18,14 +18,14 @@ var config = require('./config');
 //
 // setup application
 //
-Next(null, function(err, result, next){
+Next(null, function(err, result, next) {
 
 	//
 	// get the data model
 	//
 	require('./model')(config, next);
 
-}, function(err, security, next){
+}, function(err, security, next) {
 
 	//console.log('S', arguments);
 
@@ -40,7 +40,7 @@ Next(null, function(err, result, next){
 	//
 	// define server middleware
 	//
-	app.configure(function(){
+	app.configure(function() {
 
 		// environment flavor
 		//
@@ -68,13 +68,13 @@ Next(null, function(err, result, next){
 		}
 
 		// manage cookie-based secure sessions
-		app.use(require('cookie-sessions')({
-			session_key: 'sid',			// cookie name
-			secret: 'your secret here',	// application secret
-			timeout: 24*60*60*1000		// cookie expiry timeout
-		}));
+		app.use(require('cookie-sessions')(config.security.session));
 		// handle authentication
 		app.use(require('./middleware/auth').form('/auth', {
+			// auth URL
+			signinURL: 'http://dvv.dyndns.org:3000/auth',
+			// signup function
+			signup: security.signup,
 	        // native authentication
 			validate: security.checkCredentials,
 	        // loginza.ru authentication
@@ -135,7 +135,7 @@ Next(null, function(err, result, next){
 	//
 	// handle chrome
 	//
-	app.get('/', function(req, res, next){
+	app.get('/', function(req, res, next) {
 		res.render('index', req.context);
 	});
 
@@ -145,7 +145,7 @@ Next(null, function(err, result, next){
 	next(null, app);
 	require('repl').start('node> ').context.app = security;
 
-}, function(err, app, next){
+}, function(err, app, next) {
 
 	//console.log('A', err, app);
 

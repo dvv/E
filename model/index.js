@@ -12,7 +12,7 @@ var Database = require('../lib/database');
 var schema = require('./schema');
 //console.log('SCHEMA', schema);
 
-module.exports = function(config, callback){
+module.exports = function(config, callback) {
 
 //
 // secrets helpers
@@ -20,18 +20,18 @@ module.exports = function(config, callback){
 var Crypto = require('crypto');
 function nonce() {
 	return (Date.now() & 0x7fff).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36);
-};
+}
 function sha1(data, key) {
 	var hmac = Crypto.createHmac('sha1', '');
 	hmac.update(data);
 	return hmac.digest('hex');
-};
+}
 function encryptPassword(password, salt) {
 	return sha1(salt + password + config.security.secret);
-};
+}
 
 ////////////////////////////////////////////////////////////
-Next({}, function(err, result, next){
+Next({}, function(err, result, next) {
 
 	//
 	// connect to MongoDB instance, register entities
@@ -39,7 +39,7 @@ Next({}, function(err, result, next){
 	var db = new Database(config.database.url, schema, next);
 
 ////////////////////////////////////////////////////////////
-}, function(err, model, next){
+}, function(err, model, next) {
 
 	//
 	// set the model
@@ -51,6 +51,7 @@ Next({}, function(err, result, next){
 	// redefine User accessors, to obey security
 	//
 	var User = model.User;
+	var Admin = model.Admin;
 	_.each(model, function(entity, name) {
 		if (entity.schema.collection !== 'User') return;
 		var orig = entity;
@@ -95,15 +96,34 @@ Next({}, function(err, result, next){
 			var password = encryptPassword(data.password, salt);
 			Next(null, function(err, result, step) {
 				// the very first user of type 'admin' becomes the root
-				User.queryAny(context, 'type=admin&select(id)', step);
-			}, function(err, adminIds, step) {
+				// N.B. typically at bootstrap you need to enable config.security.bypass,
+				// create the first admin user by PUTting to /Admin/_new, and
+				// redisable config.security.bypass
+				User.queryAny(context, 'type=admin&select(id,roles)&limit(1)', step);
+			}, function(err, admins, step) {
 				if (err) return next(err);
-				if (!adminIds.length) {
-					data.roles = fullRole;
-				/*} else {
-					delete data.roles;*/
+				// if no admins so far -> the very first user being added will be the root
+				if (!admins.length) {
+					// if no context provided -> self-registration is meant,
+					// context should mention root's id and full roles
+					if (!context) context = {user: {id: nonce()+nonce()+nonce(), roles: fullRole}};
+					// add admin user
+					Admin.add(context, {
+						id: data.id,
+						password: password,
+						salt: salt,
+						roles: fullRole
+					}, step);
+					return;
+				// if no context provided -> self-registration is meant,
+				// context should mention root's id
+				} else if (!context) {
+					context = {user: admins[0]};
+					// use default role
+					delete data.roles;
 				}
-				//console.log('ADD?', data, password);
+				console.log('ADD?', data, context, password);
+				// add typed user
 				orig.add(context, {
 					id: data.id,
 					password: password,
@@ -112,8 +132,9 @@ Next({}, function(err, result, next){
 					roles: data.roles
 				}, step);
 			}, function(err, user, step) {
+				console.log('USERADDED', err, user);
 				if (err) return next(err);
-				// TODO: node-mailer data.password
+				// TODO: node-mailer data.id, data.password
 				next(null, user);
 			});
 		};
@@ -126,61 +147,46 @@ Next({}, function(err, result, next){
 		// update -- act differently upon context.user (because of schema);
 		// also take care of updating salt and crypted password
 		//
-		store.update = function(context, query, changes, next) {
-			var plainPassword;
-			Next(context,
+		store.updateOwn = function(context, query, changes, next) {
+			Next(context, function(err, result, step) {
 				// update self
-				function(err, result, step) {
-					var profileChanges = _.clone(changes);
-					if (profileChanges.password) {
-						plainPassword = String(profileChanges.password);
-						profileChanges.salt = nonce();
-						profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
-					}
-					orig._updateOwn(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
-					/*
-										if plainPassword and @user.email
-											console.log 'PASSWORD SET TO', plainPassword
-											#	mail context.user.email, 'Password set', plainPassword
-										*/
-				},
-				// update others
-				function(err, result, step) {
-					orig.updateOwn(context, _.rql(query).ne('id', context.user.id), changes, step);
-				},
-				// TODO: report changes (email?)
-				function(err) {
-					next(err);
+				var profileChanges = _.clone(changes);
+				if (profileChanges.password) {
+					var plainPassword = String(profileChanges.password);
+					profileChanges.salt = nonce();
+					profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
 				}
-			);
+				orig._updateOwn(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+				/*
+									if plainPassword and this.user.email
+										console.log 'PASSWORD SET TO', plainPassword
+										#	mail context.user.email, 'Password set', plainPassword
+									*/
+			}, function(err, result, step) {
+				// update others
+				orig.updateOwn(context, _.rql(query).ne('id', context.user.id), changes, step);
+			}, function(err) {
+				// TODO: report changes (email?)
+				next(err);
+			});
 		};
 		store.updateAny = function(context, query, changes, next) {
-			var plainPassword;
-			Next(context,
+			Next(context, function(err, result, step) {
 				// update self
-				function(err, result, step) {
-					var profileChanges = _.clone(changes);
-					if (profileChanges.password) {
-						plainPassword = String(profileChanges.password);
-						profileChanges.salt = nonce();
-						profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
-					}
-					orig._updateAny(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
-					/*
-										if plainPassword and @user.email
-											console.log 'PASSWORD SET TO', plainPassword
-											#	mail context.user.email, 'Password set', plainPassword
-										*/
-				},
-				// update others
-				function(err, result, step) {
-					orig.updateAny(context, _.rql(query).ne('id', context.user.id), changes, step);
-				},
-				// TODO: report changes (email?)
-				function(err) {
-					next(err);
+				var profileChanges = _.clone(changes);
+				if (profileChanges.password) {
+					var plainPassword = String(profileChanges.password);
+					profileChanges.salt = nonce();
+					profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
 				}
-			);
+				orig._updateAny(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+			}, function(err, result, step) {
+				// update others
+				orig.updateAny(context, _.rql(query).ne('id', context.user.id), changes, step);
+			}, function(err) {
+				// TODO: report changes (email?)
+				next(err);
+			});
 		};
 		//
 		// remove -- forbid self-removal
@@ -307,50 +313,62 @@ Next({}, function(err, result, next){
 	//
 	// get capability of a user uid
 	//
-	function getCapability(uid, next) {
-		Next(null,
-			function(err, result, step) {
-				User._getAny(null, this, uid, step);
-			},
-			function(err, user, step) {
-				//console.log('USER', err, user);
-				// bad user defaults to a guest
-				if (!user) user = {};
-				// context is a superposition of user roles
-				if (config.security.bypass) user.roles = fullRole;
-				var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return roles[x] || {};})));
-				// set context user
-				Object.defineProperty(caps, 'user', {value: user});
-				//
-				//console.log('CAPS', user, caps);
-				next(null, caps);
-			}
-		);
+	function getCapability(uid, callback) {
+		Next(null, function(err, result, next) {
+			User._getAny(null, null, uid, next);
+		}, function(err, user) {
+			//console.log('USER', err, user);
+			// bad user defaults to a guest
+			if (!user) user = {};
+			// context is a superposition of user roles
+			if (config.security.bypass) user.roles = fullRole;
+			var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return roles[x] || {};})));
+			// set context user
+			Object.defineProperty(caps, 'user', {value: user});
+			//
+			//console.log('CAPS', user, caps);
+			callback(null, caps);
+		});
 	}
 
 	//
 	// verify provided credentials, return the user context
+	// used in auth middleware
 	//
-	function checkCredentials(uid, password, next) {
-		Next(null,
-			function(err, result, step) {
-				getCapability(uid, step);
-			},
-			function(err, context) {
-				var user = context.user;
-				if (!user.id) {
-					next();
+	function checkCredentials(uid, password, callback) {
+		Next(null, function(err, result, next) {
+			getCapability(uid, next);
+		}, function(err, context) {
+			var user = context.user;
+			// user not found
+			if (!user.id) {
+				// logout
+				if (!uid) {
+					callback();
+				// no such user
 				} else {
-					if (!user.password || user.blocked) {
-						next('User blocked');
-					} else if (user.password !== encryptPassword(password, user.salt)) {
-						next('Invalid user');
-					} else {
-						next(null, context);
-					}
+					callback('usernotfound');
+				}
+			} else {
+				if (!user.password || user.blocked) {
+					callback('userblocked');
+				} else if (user.password !== encryptPassword(password, user.salt)) {
+					// N.B. if password is false return the user existence status
+					callback('userinvalid',  password === false ? true : undefined);
+				} else {
+					callback(null, context);
 				}
 			}
-		);
+		});
+	}
+
+	//
+	// signup new user
+	// used in auth middleware
+	//
+	function signup(data, callback) {
+		// no context means to use root's one
+		model.Affiliate.add(null, data, callback);
 	}
 
 	//
@@ -358,7 +376,8 @@ Next({}, function(err, result, next){
 	//
 	callback(null, {
 		getCapability: getCapability,
-		checkCredentials: checkCredentials
+		checkCredentials: checkCredentials,
+		signup: signup
 	});
 });
 

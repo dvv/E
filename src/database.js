@@ -198,12 +198,11 @@
         document = {};
       }
       self = this;
-      uid = context && context.user && context.user.id;
       if (!document.id) {
         document.id = this.idFactory();
       }
+      uid = context && context.user && context.user.id;
       Next(self, function(err, result, next) {
-console.log('ADD?!', document);
         if (schema) {
           _.validate.call(context, document, schema, {
             veto: true,
@@ -215,7 +214,6 @@ console.log('ADD?!', document);
           next(null, document);
         }
       }, function(err, document, next) {
-console.log('ADD!', document);
         var parents, _ref, _ref2, _ref3;
         if (err) {
           return next(err);

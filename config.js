@@ -19,9 +19,9 @@ module.exports = {
 	security: {
 		//bypass: true,
 		session: {
-			session_key: 'sid',
-			secret: 'your secret here',
-			timeout: 24*60*60*1000
+			session_key: 'sid',			// cookie name
+			secret: 'your secret here',	// application secret
+			timeout: 24*60*60*1000		// cookie expiry timeout
 		},
 		url: '/auth',
 		userTypes: {

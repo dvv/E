@@ -143,7 +143,7 @@ var UserEntity = {
 						if (parts[0] === hasParts[0]) {
 							var priority = rolePriority.indexOf(parts[1]);
 							var hasPriority = rolePriority.indexOf(hasParts[1]);
-							//console.log('HAS', priority, hasPriority);
+							//console.log('HAS', hasPriority, 'GRANTS', priority);
 							if (~priority && ~hasPriority && priority >= hasPriority) {
 								ret = true;
 								// TODO: break the loop

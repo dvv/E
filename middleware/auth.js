@@ -7,6 +7,16 @@
  *
 */
 
+var Crypto = require('crypto');
+function sha1(data, key) {
+	var hmac = Crypto.createHmac('sha1', '');
+	hmac.update(data && String(data) || '');
+	return hmac.digest('hex');
+}
+function nonce() {
+	return (Date.now() & 0x7fff).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36);
+}
+
 //
 // form based authentication, with optional OpenID brokers support
 //
@@ -42,7 +52,7 @@ module.exports.form = function setup(mount, options){
 	var wget = require('../lib/wget');
 
 	// handler
-	return function handler(req, res, next){
+	return function handler(req, res, next) {
 
 		if (req.uri.pathname !== mount) return next();
 
@@ -52,8 +62,7 @@ module.exports.form = function setup(mount, options){
 				janrain: {
 					domain: options.janrain.domain
 				},
-				tokenUrl: escape('http://dvv.dyndns.org:3000/auth&lang=ru')
-				//http%3A%2F%2Fdvv.dyndns.org%3A3000%2Fauth&lang=ru
+				tokenUrl: escape(options.signinURL)
 			});
 			return;
 		}
@@ -63,37 +72,137 @@ module.exports.form = function setup(mount, options){
 		//console.log('POSTED to /auth', req.body, req.headers);
 
 		// authentication helper
-		var authenticate = function(err, result){
-			console.log('WGOT', err, result && result.user);
+		function authenticate(err, result) {
+			//console.log('WGOT', err, result && result.user);
 			// failed? -> remove req.session
 			if (!result) {
 				delete req.session;
+				// no such user? -> try to signup (if enabled)
+				if (err === 'usernotfound' && options.signup) {
+					options.signup(req.body, function(err, user) {
+						//console.log('SIGNUP?', req.body, err && err.stack, user);
+						// FIXME: could result in endless recursion?
+						authenticate(err, {user: user});
+					});
+					return;
+				}
 			// ok? -> set req.session
 			} else {
-				// TODO: signup unless user exists, and pull info from profile
-				// native form?
+				var data;
+				//console.log('SIGNEDIN', result);
+				//
+				// native form
+				//
 				if (result.user) {
 					req.session = {uid: result.user.id};
-					// ...
+				//
 				// loginza?
+				// signup unless user exists, and copy info from profile
+				//
 				} else if (result.identity) {
+					var profile = result;
+					var uid = sha1(profile.identity);
+					// twitter
+					if (profile.provider === 'http://twitter.com/') {
+						data = {
+							id: uid,
+							name: profile.name && profile.name.full_name || undefined,
+							//email: ???,
+							photo: profile.photo
+						};
+					// google
+					} else if (profile.provider === 'https://www.google.com/accounts/o8/ud') {
+						data = {
+							id: uid,
+							name: profile.name && profile.name.full_name || undefined,
+							email: profile.email,
+							photo: profile.photo
+						};
+					// vkontakte.ru
+					} else if (profile.provider === 'http://vkontakte.ru/') {
+						data = {
+							id: uid,
+							name: profile.name && (profile.name.first_name + ' ' + profile.name.last_name) || undefined,
+							//email: ???,
+							photo: profile.photo
+						};
+					// TODO: other providers
+					} else {
+						// ...
+					}
 					// ...
+				//
 				// janrain?
+				// signup unless user exists, and copy info from profile
+				//
 				} else if (result.stat === 'ok' && result.profile) {
-					// ...
+					var profile = result.profile;
+					var uid = sha1(profile.identifier); //url?
+					// twitter
+					if (profile.providerName === 'Twitter') {
+						data = {
+							id: uid,
+							name: profile.displayName || undefined,
+							//email: ???,
+							photo: profile.photo
+						};
+					// facebook
+					} if (profile.providerName === 'Facebook') {
+						data = {
+							id: uid,
+							name: profile.displayName || undefined,
+							email: profile.verifiedEmail || profile.email,
+							photo: profile.photo
+						};
+					// google
+					} if (profile.providerName === 'Google') {
+						data = {
+							id: uid,
+							name: profile.name.formatted || undefined,
+							email: profile.verifiedEmail || profile.email,
+							photo: profile.photo
+						};
+					// TODO: other providers
+					} else {
+						// ...
+					}
+				// other brokers
+				} else {
 				}
-				//console.log(result); //preferredUsername, displayName, photo
-				//var uid = 'DUMMYSOFAR';//result.profile.verifiedEmail;
+				//console.log('TOCREATE', data);
+				//
+				// try to find local user authenticated by an OpenID provider
+				//
+				if (data) {
+					// user exists?
+					options.validate(data.id, false, function(err, result) {
+						// no such user? -> try to signup (if enabled)
+						if (err === 'usernotfound' && options.signup) {
+							data.password = nonce(); // N.B. setting password w/o email leads to bricked user
+							options.signup(data, function(err, user) {
+								//console.log('SIGNUP?', data, err && err.stack || err, user);
+								// FIXME: could result in endless recursion?
+								authenticate(err, user ? {user: user} : undefined);
+							});
+						// user exists and is validated by provider
+						} else if (err === 'userinvalid') {
+							authenticate(null, {user: {id: data.id}});
+						// other error -> logout
+						} else {
+							authenticate();
+						}
+					});
+					return;
+				}
 			}
-			console.log('SESS', req.session, result);
+			//console.log('SESS', req.session, result);
 			// respond, honoring AJAX
 			if (req.xhr) {
 				res.send(req.session);
 			} else {
-				// FIXME: shouldn't be `mount`?
-				res.redirect('/');
+				res.redirect(req.session ? '/' : mount);
 			}
-		};
+		}
 
 		// got auth token from OpenID providers?
 		var token = req.body.token;
@@ -123,16 +232,16 @@ module.exports.form = function setup(mount, options){
 };
 
 //
-// basic auth
+// basic auth. original: creationix/creationix
 //
 // @validate function(user, pass, next){next(!valid(user, pass));}
 //
-module.exports.basic = function setup(validate){
+module.exports.basic = function setup(validate) {
 
 	// setup
 	var Crypto = require('crypto');
 
-	function unauthorized(res){
+	function unauthorized(res) {
 		res.send('Authorization Required', {
 			'WWW-Authenticate': 'Basic realm="Secure Area"',
 			'Content-Type': 'text/plain; charset=UTF-8'
@@ -140,7 +249,7 @@ module.exports.basic = function setup(validate){
 	}
 
 	// handler
-	return function(req, res, next){
+	return function(req, res, next) {
 		// FIXME: only allow for localhost or HTTPS connection
 		//if (req.socket.remoteAddress === '127.0.0.1' && req.headers.authorization) {
 		if (req.headers.authorization) {
