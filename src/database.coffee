@@ -173,6 +173,9 @@ class Database extends events.EventEmitter
 			if uid
 				# check if the context user listed in document creators
 				query = query.eq('_meta.history.0.who', uid)
+		# impose constraints. N.B. we have to do it here, not in query, since we call query with no schema!
+		_.each schema?.constraints, (constraint) ->
+			query = query[constraint.op](constraint.key, constraint.value)
 		@query collection, own, null, context, query, (err, result) ->
 			if callback
 				if err
@@ -193,7 +196,7 @@ class Database extends events.EventEmitter
 		uid = context and context.user and context.user.id
 		# assign new primary key unless specified
 		# FIXME: what if id is required?
-		#document.id = @idFactory() unless document.id
+		document.id = @idFactory() unless document.id
 		Next self,
 			(err, result, next) ->
 				#console.error 'BEFOREADD', document, schema

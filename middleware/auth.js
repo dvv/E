@@ -64,7 +64,7 @@ module.exports.form = function setup(mount, options){
 
 		// authentication helper
 		var authenticate = function(err, result){
-			//console.log('WGOT', err, result, result.user);
+			console.log('WGOT', err, result && result.user);
 			// failed? -> remove req.session
 			if (!result) {
 				delete req.session;

@@ -170,6 +170,9 @@
           query = query.eq('_meta.history.0.who', uid);
         }
       }
+      _.each(schema != null ? schema.constraints : void 0, function(constraint) {
+        return query = query[constraint.op](constraint.key, constraint.value);
+      });
       this.query(collection, own, null, context, query, function(err, result) {
         var doc;
         if (callback) {
@@ -196,7 +199,11 @@
       }
       self = this;
       uid = context && context.user && context.user.id;
+      if (!document.id) {
+        document.id = this.idFactory();
+      }
       Next(self, function(err, result, next) {
+console.log('ADD?!', document);
         if (schema) {
           _.validate.call(context, document, schema, {
             veto: true,
@@ -208,6 +215,7 @@
           next(null, document);
         }
       }, function(err, document, next) {
+console.log('ADD!', document);
         var parents, _ref, _ref2, _ref3;
         if (err) {
           return next(err);
