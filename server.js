@@ -103,7 +103,8 @@ Next(null, function(err, result, next) {
 
 		//app.use(express.compiler(src: 'src', dest: 'lib', enable: ['coffeescript']));
 		// serve static files under ./public directory
-		app.use(express.static(__dirname + '/public'));
+		//app.use(express.static(__dirname + '/public'));
+		app.use(require('./middleware/static')('/', __dirname + '/public', null));
 
 		// so far just dump the request
 		//app.use(function(req, res, next){res.send(req.session);});

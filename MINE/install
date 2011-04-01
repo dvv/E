@@ -1,0 +1,20 @@
+#!/bin/sh
+
+if ! test -f nmod; then
+	wget --no-check-certificate http://github.com/jeromeetienne/nmod/raw/master/nmod
+	chmod a+x nmod
+fi
+NMOD='./nmod install'
+
+fetch() {
+	test -d node_modules/$1 || $NMOD $1
+}
+
+fetch stereo
+fetch cookie-sessions
+fetch formidable
+fetch qs
+fetch simple-mime
+fetch mongodb
+fetch underscore
+fetch underscore-data
