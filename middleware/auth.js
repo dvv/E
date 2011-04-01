@@ -54,10 +54,29 @@ module.exports.form = function setup(mount, options){
 	// handler
 	return function handler(req, res, next) {
 
+		//
+		// get current user capabilities
+		//
+		if (options.getCapability && !req.context) {
+			// N.B. map all falsy user ids to uid=''
+			options.getCapability(req.session && req.session.uid || '', function(err, context) {
+				req.context = context;
+				// rerun the handler with `req.context` set
+				handler(req, res, next);
+			});
+			return;
+		}
+
+		//
+		// check we are in business
+		//
 		if (req.uri.pathname !== mount) return next();
 
+		//
 		// GET -- render authentication page
+		//
 		if (req.method === 'GET') {
+			// FIXME: render means express
 			res.render('auth', {
 				janrain: {
 					domain: options.janrain.domain
@@ -67,7 +86,9 @@ module.exports.form = function setup(mount, options){
 			return;
 		}
 
+		//
 		// POST -- handle the input
+		//
 		if (req.method !== 'POST') return next();
 		//console.log('POSTED to /auth', req.body, req.headers);
 
@@ -76,6 +97,7 @@ module.exports.form = function setup(mount, options){
 			//console.log('WGOT', err, result && result.user);
 			// failed? -> remove req.session
 			if (!result) {
+				// FIXME: instead set a flash with error?
 				delete req.session;
 				// no such user? -> try to signup (if enabled)
 				if (err === 'usernotfound' && options.signup) {
@@ -196,12 +218,7 @@ module.exports.form = function setup(mount, options){
 				}
 			}
 			//console.log('SESS', req.session, result);
-			// respond, honoring AJAX
-			if (req.xhr) {
-				res.send(req.session);
-			} else {
-				res.redirect(req.session ? '/' : mount);
-			}
+			res.redirect(req.session ? '/' : mount);
 		}
 
 		// got auth token from OpenID providers?
@@ -239,7 +256,6 @@ module.exports.form = function setup(mount, options){
 module.exports.basic = function setup(validate) {
 
 	// setup
-	var Crypto = require('crypto');
 
 	function unauthorized(res) {
 		res.send('Authorization Required', {

@@ -56,6 +56,7 @@ Next(null, function(err, result, next) {
 
 		// parse the body to req.body, req.files; parse req.url to req.uri
 		// N.B. express.bodyDecoder doesn't handle multipart forms
+		// TODO: csrf https://github.com/hanssonlarsson/express-csrf
 		app.use(require('./middleware/body')());
 
 		// override req.method with X-HTTP-Method-Override: or req.body._method, if any
@@ -75,24 +76,27 @@ Next(null, function(err, result, next) {
 			signinURL: 'http://dvv.dyndns.org:3000/auth',
 			// signup function
 			signup: security.signup,
-	        // native authentication
+			// get capability
+			getCapability: security.getCapability,
+			// native authentication
 			validate: security.checkCredentials,
-	        // loginza.ru authentication
-	        loginza: true,
-	        // janrain.com authentication
-	        janrain: {
-	            domain: 'dvv',
-	            apiKey: 'cce43a9bb39074792db57c01edaf4aa61e4b158f'
-	        }
+			// loginza.ru authentication
+			loginza: true,
+			// janrain.com authentication
+			janrain: {
+				domain: 'dvv',
+				apiKey: 'cce43a9bb39074792db57c01edaf4aa61e4b158f'
+			}
 		}));
 
-		// TODO: csrf https://github.com/hanssonlarsson/express-csrf
+		// get current user capabilities
+		//app.use(require('./middleware/caps')(security.getCapability));
 
 		// handle manually defined routes
 		app.use(app.router);
 
 		// handle RESTful access
-		app.use(require('./middleware/rest')('', security.getCapability, {
+		app.use(require('./middleware/rest')('', {
 			putNew: '_new',
 			jsonrpc: true
 		}));

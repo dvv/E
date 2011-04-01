@@ -92,6 +92,7 @@ Next({}, function(err, result, next) {
 				//data.password = nonce().substring(0, 7);
 				return next('Need password');
 			}
+			if (!data.email) return next('Need email');
 			var salt = nonce();
 			var password = encryptPassword(data.password, salt);
 			Next(null, function(err, result, step) {
@@ -101,6 +102,7 @@ Next({}, function(err, result, next) {
 				// redisable config.security.bypass
 				User.queryAny(context, 'type=admin&select(id,roles)&limit(1)', step);
 			}, function(err, admins, step) {
+				//console.log('ADMINS', arguments);
 				if (err) return next(err);
 				// if no admins so far -> the very first user being added will be the root
 				if (!admins.length) {
@@ -110,9 +112,11 @@ Next({}, function(err, result, next) {
 					// add admin user
 					Admin.add(context, {
 						id: data.id,
+						email: data.email,
 						password: password,
 						salt: salt,
-						roles: fullRole
+						roles: fullRole,
+						status: 'approved'
 					}, step);
 					return;
 				// if no context provided -> self-registration is meant,
@@ -121,15 +125,23 @@ Next({}, function(err, result, next) {
 					context = {user: admins[0]};
 					// use default role
 					delete data.roles;
+					// use default status
+					delete data.status;
+				// authorized user creates new user
+				} else {
+					// set status to 'approved'
+					data.status = 'approved';
 				}
 				console.log('ADD?', data, context, password);
 				// add typed user
 				orig.add(context, {
 					id: data.id,
+					email: data.email,
 					password: password,
 					salt: salt,
 					type: data.type,
-					roles: data.roles
+					roles: data.roles,
+					status: data.status
 				}, step);
 			}, function(err, user, step) {
 				console.log('USERADDED', err, user);
@@ -140,6 +152,7 @@ Next({}, function(err, result, next) {
 		};
 		//
 		// query -- goes intact
+		//
 		store.queryOwn = orig.queryOwn;
 		store.queryAny = orig.queryAny;
 		//
@@ -158,15 +171,17 @@ Next({}, function(err, result, next) {
 				}
 				orig._updateOwn(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
 				/*
-									if plainPassword and this.user.email
+									if plainPassword and context.user.email
 										console.log 'PASSWORD SET TO', plainPassword
 										#	mail context.user.email, 'Password set', plainPassword
 									*/
 			}, function(err, result, step) {
+				// TODO: report changes (email?)
+				step();
+			}, function(err, result, step) {
 				// update others
 				orig.updateOwn(context, _.rql(query).ne('id', context.user.id), changes, step);
 			}, function(err) {
-				// TODO: report changes (email?)
 				next(err);
 			});
 		};
@@ -181,10 +196,12 @@ Next({}, function(err, result, next) {
 				}
 				orig._updateAny(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
 			}, function(err, result, step) {
+				// TODO: report changes (email?)
+				step();
+			}, function(err, result, step) {
 				// update others
 				orig.updateAny(context, _.rql(query).ne('id', context.user.id), changes, step);
 			}, function(err) {
-				// TODO: report changes (email?)
 				next(err);
 			});
 		};
@@ -237,7 +254,14 @@ Next({}, function(err, result, next) {
 			};
 		}
 		//
-		// replace entity
+		// ???
+		//
+		store.foo = function(context, params, next) {
+			console.log('User.foo(' + JSON.stringify(params) + ') called!');
+			next();
+		}
+		//
+		// replace the entity
 		//
 		model[name] = store;
 	});
@@ -246,7 +270,7 @@ Next({}, function(err, result, next) {
 	delete model.User;
 
 	//
-	// derive roles from model
+	// derive standard roles from model
 	//
 	var roles = {};
 	_.each(model, function(store, name){
@@ -278,7 +302,8 @@ Next({}, function(err, result, next) {
 			get: store.getAny,
 			add: store.add,
 			update: store.updateAny,
-			remove: store.removeAny
+			remove: store.removeAny,
+			foo: store.foo
 		});
 		if (store.deleteOwn) {
 			_.extend(roles['' + name + '-author'], prop({
@@ -299,7 +324,7 @@ Next({}, function(err, result, next) {
 	//console.log(roles);
 
 	//
-	// fetch the roles
+	// fetch custom roles
 	//
 	//model.Role.query(null, '', next);
 	//next(null, require('./roles'));
@@ -354,7 +379,7 @@ Next({}, function(err, result, next) {
 					callback('userblocked');
 				} else if (user.password !== encryptPassword(password, user.salt)) {
 					// N.B. if password is false return the user existence status
-					callback('userinvalid',  password === false ? true : undefined);
+					callback('userinvalid', password === false ? true : undefined);
 				} else {
 					callback(null, context);
 				}

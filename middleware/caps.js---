@@ -1,0 +1,28 @@
+'use strict';
+
+/*
+ *
+ * Copyright(c) 2011 Vladimir Dronnikov <dronnikov@gmail.com>
+ * MIT Licensed
+ *
+*/
+
+//
+// populate `req.context` with the current user capabilities
+//
+module.exports = function setup(getCapabilityFn, options) {
+
+	// setup
+	options = options || {};
+
+	// handler
+	return function handler(req, res, next) {
+		// N.B. map all falsy users to uid=''
+		var uid = req.session && req.session.uid || '';
+		getCapabilityFn(uid, function(err, context) {
+			req.context = context;
+			next();
+		});
+	};
+
+};
