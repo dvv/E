@@ -31,8 +31,8 @@ module.exports = {
 			apiKey: 'cce43a9bb39074792db57c01edaf4aa61e4b158f'
 		},
 		userTypes: {
-			affiliate: 'Affiliate',
-			admin: 'Admin'
+			admin: 'Admin',
+			affiliate: 'Affiliate'
 		}
 	},
 	database: {

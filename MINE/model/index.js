@@ -50,7 +50,7 @@ Next({}, function(err, result, next) {
 	//
 	// redefine User accessors, to obey security
 	//
-	var User = model.User;
+	var Self = model.Self;
 	var Admin = model.Admin;
 	_.each(model, function(entity, name) {
 		if (entity.schema.collection !== 'User') return;
@@ -65,7 +65,7 @@ Next({}, function(err, result, next) {
 			var isSelf = id === context.user.id;
 			// if so, return private view of the user record
 			if (isSelf) {
-				orig._getOwn(schema.User, context, id, next);
+				orig._getOwn(schema.Self, context, id, next);
 			// else return admin's view
 			} else {
 				orig.getOwn(context, id, next);
@@ -77,7 +77,7 @@ Next({}, function(err, result, next) {
 			var isSelf = id === context.user.id;
 			// if so, return private view of the user record
 			if (isSelf) {
-				orig._getAny(schema.User, context, id, next);
+				orig._getAny(schema.Self, context, id, next);
 			// else return admin's view
 			} else {
 				orig.getAny(context, id, next);
@@ -85,6 +85,7 @@ Next({}, function(err, result, next) {
 		};
 		//
 		// add -- assign crypted password and salt
+		// handle self-registration
 		//
 		store.add = function(context, data, next) {
 			if (!data) data = {};
@@ -100,7 +101,7 @@ Next({}, function(err, result, next) {
 				// N.B. typically at bootstrap you need to enable config.security.bypass,
 				// create the first admin user by PUTting to /Admin/_new, and
 				// redisable config.security.bypass
-				User.queryAny(context, 'type=admin&select(id,roles)&limit(1)', step);
+				Admin.queryAny(context, 'select(id,roles)&limit(1)', step);
 			}, function(err, admins, step) {
 				//console.log('ADMINS', arguments);
 				if (err) return next(err);
@@ -169,7 +170,7 @@ Next({}, function(err, result, next) {
 					profileChanges.salt = nonce();
 					profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
 				}
-				orig._updateOwn(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+				orig._updateOwn(schema.Self, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
 				/*
 									if plainPassword and context.user.email
 										console.log 'PASSWORD SET TO', plainPassword
@@ -194,7 +195,7 @@ Next({}, function(err, result, next) {
 					profileChanges.salt = nonce();
 					profileChanges.password = encryptPassword(plainPassword, profileChanges.salt);
 				}
-				orig._updateAny(schema.User, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
+				orig._updateAny(schema.Self, context, _.rql(query).eq('id', context.user.id), profileChanges, step);
 			}, function(err, result, step) {
 				// TODO: report changes (email?)
 				step();
@@ -245,12 +246,12 @@ Next({}, function(err, result, next) {
 		//
 		if (orig.purgeOwn) {
 			store.purgeOwn = function(context, query, next) {
-				User.purgeOwn(context, _.rql(query).ne('id', context.user.id), next);
+				orig.purgeOwn(context, _.rql(query).ne('id', context.user.id), next);
 			};
 		}
 		if (orig.purgeAny) {
 			store.purgeAny = function(context, query, next) {
-				User.purgeAny(context, _.rql(query).ne('id', context.user.id), next);
+				orig.purgeAny(context, _.rql(query).ne('id', context.user.id), next);
 			};
 		}
 		//
@@ -266,14 +267,15 @@ Next({}, function(err, result, next) {
 		model[name] = store;
 	});
 
-	// N.B. there's no exposed User model
-	delete model.User;
+	// N.B. there's no exposed Self model
+	delete model.Self;
 
 	//
 	// derive standard roles from model
 	//
 	var roles = {};
-	_.each(model, function(store, name){
+	var fullRole = [];
+	_.each(model, function(store, name) {
 		function prop(value) {
 			var r = {};
 			r[name]= value;
@@ -297,7 +299,11 @@ Next({}, function(err, result, next) {
 			update: store.updateOwn,
 			remove: store.removeOwn
 		});
-		roles['' + name + '-editor'] = prop({
+		// full access role
+		var full = '' + name + '-editor';
+		// collect the full access role
+		fullRole.push(full);
+		roles[full] = prop({
 			query: store.queryAny,
 			get: store.getAny,
 			add: store.add,
@@ -329,18 +335,12 @@ Next({}, function(err, result, next) {
 	//model.Role.query(null, '', next);
 	//next(null, require('./roles'));
 
-	// collect the full access role
-	var fullRole = [];
-	_.each(roles, function(role, name){
-		if (name.match(/-editor$/)) fullRole.push(name);
-	});
-
 	//
 	// get capability of a user uid
 	//
 	function getCapability(uid, callback) {
 		Next(null, function(err, result, next) {
-			User._getAny(null, null, uid, next);
+			Self._getAny(null, null, uid, next);
 		}, function(err, user) {
 			//console.log('USER', err, user);
 			// bad user defaults to a guest

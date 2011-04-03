@@ -1,100 +1,6 @@
 'use strict';
 
-//
-// helpers to tune properties
-//
-
-// read-only
-function ro(attr) {
-	return _.extend({}, attr, {
-		veto: {
-			update: true
-		}
-	});
-}
-
-// query-only
-function qo(attr) {
-	return _.extend({}, attr, {
-		veto: {
-			get: true,
-			update: true
-		}
-	});
-}
-
-// write-only
-function wo(attr) {
-	return _.extend({}, attr, {
-		veto: {
-			query: true,
-			get: true
-		}
-	});
-}
-
-// create-only
-function co(attr) {
-	return _.extend({}, attr, {
-		veto: {
-			query: true,
-			get: true,
-			update: true
-		}
-	});
-}
-
-// fix the value
-function fix(attr, value) {
-	return _.extend({}, attr, {
-		value: value
-	});
-}
-
-// set default value
-function def(attr, value) {
-	return _.extend({}, attr, {
-		default: value
-	});
-}
-
-//
-// Role is an array of rights granted upon entity, or array of another Roles
-//
-var Role = {
-	type: 'object',
-	additionalProperties: false,
-	properties: {
-		id: {
-			type: 'string',
-			veto: {
-				update: true
-			}
-		},
-		name: {
-			type: 'string',
-			optional: true
-		},
-		entity: {
-			type: 'string',
-			optional: true
-		},
-		methods: {
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			optional: true
-		},
-		roles: {
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			optional: true
-		}
-	}
-};
+var db = require('../lib/database');
 
 //
 // define standard roles priority
@@ -106,14 +12,10 @@ var rolePriority = ['editor', 'author', 'creator', 'reader', 'viewer'];
 // generic user entity
 //
 
-var userTypes = {
-	affiliate: 'Affiliate',
-	admin: 'Admin'
-};
-
-var UserEntity = {
+var User = {
 	type: 'object',
 	properties: {
+		// primary key, "login"
 		id: {
 			type: 'string',
 			pattern: '^[a-zA-Z0-9_]+$',
@@ -121,15 +23,18 @@ var UserEntity = {
 				update: true
 			}
 		},
+		// subdivision, to denote user flavor
 		type: {
 			type: 'string',
-			'enum': _.keys(userTypes)
+			'enum': ['Admin', 'Affiliate']
 		},
+		// array of role names, which define the access level to a certain entity
+		// role name is <Entity>-<level>
 		roles: {
 			type: 'array',
 			items: {
 				type: 'string',
-				'enum': function(value){
+				'enum': function(value) {
 					//if (!value) return false;
 					//console.log('VALIDATEROLE', value, this);
 					// honor roles hierarchy
@@ -138,7 +43,7 @@ var UserEntity = {
 					var prefix = new RegExp('^' + parts[0] + '-');
 					//has = _.filter(has, function(r){return r.match(prefix)});
 					var ret = false;
-					_.each(has, function(r){
+					_.each(has, function(r) {
 						var hasParts = r.split('-', 2);
 						if (parts[0] === hasParts[0]) {
 							var priority = rolePriority.indexOf(parts[1]);
@@ -155,29 +60,31 @@ var UserEntity = {
 			},
 			default: []
 		},
+		// blocking status, non-empty string
 		blocked: {
 			type: 'string',
 			optional: true
 		},
+		// user approval status, to help self-registration
 		status: {
 			type: 'string',
 			'enum': ['pending', 'approved', 'declined'],
 			default: 'pending'
 		},
+		// authentication secret, hashed by SHA1 with the salt
 		password: {
-			type: 'string',
-			/*onSet: function(doc, value){
-				doc.salt = nonce();
-				value = encryptPassword(value, doc.salt);
-			}*/
+			type: 'string'
 		},
+		// salt for password
 		salt: {
 			type: 'string'
 		},
+		// secret token, to ask from a user who wants to recover
 		secret: {
 			type: 'string',
 			optional: true
 		},
+		// array of arbitrary strings to tag the user
 		tags: {
 			type: 'array',
 			items: {
@@ -185,15 +92,18 @@ var UserEntity = {
 			},
 			default: []
 		},
+		// user human name
 		name: {
 			type: 'string',
 			optional: true
 		},
+		// user email, to communicate
 		email: {
 			type: 'string',
 			pattern: /^([\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+\.)*[\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+@((((([a-z0-9]{1}[a-z0-9\-]{0,62}[a-z0-9]{1})|[a-z])\.)+[a-z]{2,6})|(\d{1,3}\.){3}\d{1,3}(\:\d{1,5})?)$/i,
 			optional: true
 		},
+		// user time zone
 		timezone: {
 			type: 'string',
 			// TODO: from simple-geo
@@ -209,19 +119,31 @@ var UserEntity = {
 var Admin = {
 	type: 'object',
 	properties: {
-		id: UserEntity.properties.id,
-		type: fix(ro(UserEntity.properties.type), 'admin'),
-		roles: def(UserEntity.properties.roles, ['Admin-author']),
-		blocked: UserEntity.properties.blocked,
-		status: UserEntity.properties.status,
-		password: co(UserEntity.properties.password),
-		salt: co(UserEntity.properties.salt),
-		tags: UserEntity.properties.tags,
-		name: ro(UserEntity.properties.name),
-		email: ro(UserEntity.properties.email),
-		timezone: ro(UserEntity.properties.timezone)
+		id: User.properties.id,
+		// type is always 'admin'
+		type: db.fix(ro(User.properties.type), 'admin'),
+		// default role is to author new admins
+		roles: db.def(User.properties.roles, ['Admin-author']),
+		// admin can block users
+		blocked: User.properties.blocked,
+		// admin can control approval status
+		status: User.properties.status,
+		// admin can set initial user password
+		password: db.co(User.properties.password),
+		// admin can salt initial user password
+		salt: db.co(User.properties.salt),
+		// admin can tag users
+		tags: User.properties.tags,
+		// admin can read user name
+		name: db.ro(User.properties.name),
+		// admin can read user email
+		email: db.ro(User.properties.email),
+		// admin can read user time zone
+		timezone: db.ro(User.properties.timezone)
 	},
+	// admins are stored in User collection
 	collection: 'User',
+	// additional conditions imposed on all accessors
 	constraints: [
 		{key: 'type', value: 'admin', op: 'eq'}
 	]
@@ -233,41 +155,61 @@ var Admin = {
 var Affiliate = {
 	type: 'object',
 	properties: {
-		id: UserEntity.properties.id,
-		type: fix(ro(UserEntity.properties.type), 'affiliate'),
-		roles: def(UserEntity.properties.roles, ['Affiliate-author']),
-		blocked: UserEntity.properties.blocked,
-		status: UserEntity.properties.status,
-		password: co(UserEntity.properties.password),
-		salt: co(UserEntity.properties.salt),
-		tags: UserEntity.properties.tags,
-		name: ro(UserEntity.properties.name),
-		email: ro(UserEntity.properties.email),
-		timezone: ro(UserEntity.properties.timezone)
+		id: User.properties.id,
+		// type is always 'affiliate'
+		type: db.fix(ro(User.properties.type), 'affiliate'),
+		// default affiliate role is nothing
+		roles: db.def(User.properties.roles, []),
+		// affiliate can block subordinates
+		blocked: User.properties.blocked,
+		// affiliate can approve subordinates
+		status: User.properties.status,
+		// affiliate can set initial subordinate password
+		password: db.co(User.properties.password),
+		// affiliate can salt initial subordinate password
+		salt: db.co(User.properties.salt),
+		// affiliate can tag subordinates
+		tags: User.properties.tags,
+		// affiliate can read subordinate name
+		name: db.ro(User.properties.name),
+		// affiliate can read subordinate email
+		email: db.ro(User.properties.email),
+		// affiliate can read subordinate time zone
+		timezone: db.ro(User.properties.timezone)
 	},
+	// affiliates are stored in User collection
 	collection: 'User',
+	// additional conditions imposed on all accessors
 	constraints: [
 		{key: 'type', value: 'affiliate', op: 'eq'}
 	]
 };
 
 //
-// User as seen by the user himself
-// TODO: should NOT be exposed
+// User as seen by himself
 //
-var User = {
+var Self = {
 	type: 'object',
 	properties: {
-		id: UserEntity.properties.id,
-		type: ro(UserEntity.properties.type),
-		roles: ro(UserEntity.properties.roles),
-		password: wo(UserEntity.properties.password),
-		salt: wo(UserEntity.properties.salt),
-		name: UserEntity.properties.name,
-		email: UserEntity.properties.email,
-		timezone: UserEntity.properties.timezone,
-		secret: UserEntity.properties.secret
+		id: User.properties.id,
+		// user can read his type
+		type: db.ro(User.properties.type),
+		// user can read his roles
+		roles: db.ro(User.properties.roles),
+		// user can set his password
+		password: db.wo(User.properties.password),
+		// user can salt his password
+		salt: db.wo(User.properties.salt),
+		// user can read/write his secret
+		secret: User.properties.secret,
+		// user can rename himself
+		name: User.properties.name,
+		// user can control his email
+		email: User.properties.email,
+		// user can control his time zone
+		timezone: User.properties.timezone
 	},
+	// users are stored in User collection
 	collection: 'User'
 };
 
@@ -300,7 +242,7 @@ var Foo = {
 
 module.exports = {
 	Role: Role,
-	User: User,
+	Self: Self,
 	Admin: Admin,
 	Affiliate: Affiliate,
 	Foo: Foo,

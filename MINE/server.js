@@ -42,7 +42,7 @@ if (server) {
 		//
 		require('./model')(config, next);
 
-	}, function(err, security, next) {
+	}, function(err, model, next) {
 
 		//console.log('S', arguments);
 
@@ -52,11 +52,11 @@ if (server) {
 		var Middleware = require('./middleware');
 		deepCopy({
 			// signup function
-			signup: security.signup,
+			signup: model.signup,
 			// get capability
-			getCapability: security.getCapability,
+			getCapability: model.getCapability,
 			// native authentication
-			validate: security.checkCredentials
+			validate: model.checkCredentials
 		}, config.security);
 		var middleware = Middleware.vanilla(config);
 		server.on('request', middleware);
