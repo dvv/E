@@ -168,7 +168,7 @@ module.exports = function setup(options) {
 					if (err) return next(err);
 					req.body = fields;
 					req.files = files;
-					return res.send(arguments);
+					//return res.send(arguments);
 					next();
 				});
 			// htmlparser
