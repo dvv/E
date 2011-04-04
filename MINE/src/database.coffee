@@ -420,11 +420,6 @@ class Database extends events.EventEmitter
 		#console.log entity, collection, store
 		store
 
-class Model
-	constructor: (name) ->
-	getStandardRoles = () ->
-		_.keys(@)
-
 module.exports.Database = Database
 
 `
