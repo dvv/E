@@ -218,6 +218,10 @@ module.exports.form = function setup(mount, options){
 				}
 			}
 			//console.log('SESS', req.session, result);
+			/*require('../lib/email').mail('dvv854@gmail.com', 'login', 'loggedinfrom' + req.socket.remoteAddress, function(err) {
+				if (err) console.log('MAILERR', err.stack||err);
+				res.redirect(req.session ? '/' : mount);
+			});*/
 			res.redirect(req.session ? '/' : mount);
 		}
 

@@ -41,6 +41,15 @@ module.exports = {
 	upload: {
 		dir: 'upload'
 	},
+	smtp: {
+		user: 'dvv',
+		pass: 'XticrjtGbdj',
+		host: '172.23.231.73',
+		port: 2525,
+		ssl: false,
+		tls: false,
+		from: 'dvv@archonsoftware.com'
+	},
 	defaults: {
 		nls: 'en',
 		currency: 'usd'
