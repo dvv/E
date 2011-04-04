@@ -96,9 +96,7 @@ Middleware.vanilla = function(options) {
 	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
 	use(Middleware.body());
 
-	use(function(req, res, next) {
-		res.send(req.body);
-	});
+	//use(function(req, res, next) { res.send(req.body); });
 
 	// security
 	if (options.security) {
@@ -123,7 +121,7 @@ Middleware.vanilla = function(options) {
 
 	// handle manually defined routes
 	if (options.routes) {
-		routes.forEach(function(route) {
+		options.routes.forEach(function(route) {
 			use(Middleware.mount.apply(Middleware.mount, route));
 		});
 	}

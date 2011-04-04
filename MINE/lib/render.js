@@ -58,7 +58,7 @@ function template(str, data, settings) {
 		.replace(/\n/g, '\\n')
 		.replace(/\t/g, '\\t')
 		+ "');}return __p.join('');";
-	console.log('\n\n\n' + tmpl + '\n\n\n');
+	//console.log('\n\n\n' + tmpl + '\n\n\n');
 	var func = new Function('obj', tmpl);
 	return data ? func(data) : func;
 }

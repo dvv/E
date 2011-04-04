@@ -58,6 +58,12 @@ if (server) {
 			// native authentication
 			checkCredentials: model.checkCredentials
 		}, config.security);
+		var routes = [
+			['GET', '/', function(req, res, next) {
+				res.render('index', req.context);
+			}]
+		];
+		config.routes = routes;
 		var middleware = Middleware.vanilla(config);
 		server.on('request', middleware);
 		// TODO: reuse for HTTPS

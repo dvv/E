@@ -54,7 +54,6 @@ module.exports = function setup(options) {
 		parser.parseComplete(data);
 	}
 
-	// well-known parsers
 	function guess(s, next) {
 		// JSON: starts with { or [
 		// XML: starts woth <
@@ -63,13 +62,13 @@ module.exports = function setup(options) {
 		(c === '{' || c === '[') ? parseJSON(s, next) : (c === '<') ? parseHTML(s, next) : parseQS(s, next);
 	}
 
+	// parsers for well-known mime
 	var parsers = {
 		'application/json': parseJSON,
 		'text/javascript': parseJSON,
 		'application/www-urlencoded': parseQS,
 		'application/x-www-form-urlencoded': parseQS,
-		'application/xml': guess,
-//		'text/html': guess
+		'application/xml': guess
 	};
 
 	// handler
@@ -124,15 +123,13 @@ module.exports = function setup(options) {
 				});
 				// body collected -> parse it at once
 				req.on('end', function() {
-					if (body) {
-						parsers[type](body, function(err, data) {
-							if (err) return next(err);
-							//console.log('BODY', data);
-							req.body = data;
-							next();
-						});
-					}
-					next();
+					if (!body) return next();
+					parsers[type](body, function(err, data) {
+						if (err) return next(err);
+						//console.log('BODY', data);
+						req.body = data;
+						next();
+					});
 				});
 			//
 			// formidable
@@ -171,6 +168,7 @@ module.exports = function setup(options) {
 					if (err) return next(err);
 					req.body = fields;
 					req.files = files;
+					return res.send(arguments);
 					next();
 				});
 			// htmlparser
