@@ -437,5 +437,26 @@
     };
     return Model;
   })();
-  module.exports = Database;
+  module.exports.Database = Database;
+
+//
+// helpers to tune properties
+//
+
+_.extend(module.exports, {
+	// read-only
+	ro: function(attr) {return _.extend({}, attr, {veto: {update: true}});},
+	// query-only
+	qo: function(attr) {return _.extend({}, attr, {veto: {get: true, update: true}});},
+	// write-only
+	wo: function(attr) {return _.extend({}, attr, {veto: {query: true, get: true}});},
+	// create-only
+	co: function(attr) {return _.extend({}, attr, {veto: {query: true, get: true, update: true}});},
+	// fix the value
+	fix: function(attr, value) {return _.extend({}, attr, {value: value});},
+	// define default value
+	def: function(attr, value) {return _.extend({}, attr, {default: value});},
+});
+
+;
 }).call(this);

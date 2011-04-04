@@ -442,9 +442,9 @@ _.extend(module.exports, {
 	// create-only
 	co: function(attr) {return _.extend({}, attr, {veto: {query: true, get: true, update: true}});},
 	// fix the value
-	fix: function(attr) {return _.extend({}, attr, {value: value});},
+	fix: function(attr, value) {return _.extend({}, attr, {value: value});},
 	// define default value
-	def: function(attr) {return _.extend({}, attr, {default: value});},
+	def: function(attr, value) {return _.extend({}, attr, {default: value});},
 });
 
 `

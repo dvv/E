@@ -56,7 +56,7 @@ if (server) {
 			// get capability
 			getCapability: model.getCapability,
 			// native authentication
-			validate: model.checkCredentials
+			checkCredentials: model.checkCredentials
 		}, config.security);
 		var middleware = Middleware.vanilla(config);
 		server.on('request', middleware);

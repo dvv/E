@@ -121,7 +121,7 @@ var Admin = {
 	properties: {
 		id: User.properties.id,
 		// type is always 'admin'
-		type: db.fix(ro(User.properties.type), 'admin'),
+		type: db.fix(db.ro(User.properties.type), 'admin'),
 		// default role is to author new admins
 		roles: db.def(User.properties.roles, ['Admin-author']),
 		// admin can block users
@@ -157,7 +157,7 @@ var Affiliate = {
 	properties: {
 		id: User.properties.id,
 		// type is always 'affiliate'
-		type: db.fix(ro(User.properties.type), 'affiliate'),
+		type: db.fix(db.ro(User.properties.type), 'affiliate'),
 		// default affiliate role is nothing
 		roles: db.def(User.properties.roles, []),
 		// affiliate can block subordinates
@@ -241,7 +241,6 @@ var Foo = {
 };
 
 module.exports = {
-	Role: Role,
 	Self: Self,
 	Admin: Admin,
 	Affiliate: Affiliate,

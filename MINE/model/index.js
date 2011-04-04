@@ -3,7 +3,7 @@
 // TODO: beautify
 global._ = require('underscore');
 require('underscore-data');
-var Database = require('../lib/database');
+var Database = require('../lib/database').Database;
 
 //
 // collect entities schemas
@@ -45,7 +45,7 @@ Next({}, function(err, result, next) {
 	// set the model
 	//
 	if (!model) model = {};
-	//console.log('MODEL', model);
+	//console.log('MODEL', err&&err.stack, model);
 
 	//
 	// redefine User accessors, to obey security
@@ -342,7 +342,7 @@ Next({}, function(err, result, next) {
 		Next(null, function(err, result, next) {
 			Self._getAny(null, null, uid, next);
 		}, function(err, user) {
-			//console.log('USER', err, user);
+			//console.log('USER', err, user, uid);
 			// bad user defaults to a guest
 			if (!user) user = {};
 			// context is a superposition of user roles
