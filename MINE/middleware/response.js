@@ -19,6 +19,7 @@ Http.ServerResponse.prototype.send = function(body, headers, status) {
 	// defaults
 	if (!headers) headers = {};
 	if (!this.headers) this.headers = {};
+	//console.log('HEADS', headers, this.headers, arguments)
 	// error types determine status
 	if (body instanceof Error) {
 		if (body instanceof URIError) {
@@ -69,7 +70,7 @@ Http.ServerResponse.prototype.send = function(body, headers, status) {
 			this.contentType('.html');
 		}
 	// object or array means JSON
-	} else if (t === 'object' || body instanceof Array) {
+	} else if (t === 'object' || Array.isArray(body)) {
 		if (body.body || body.headers || body.status) {
 			if (body.headers) {
 				this.headers = body.headers;
@@ -77,7 +78,7 @@ Http.ServerResponse.prototype.send = function(body, headers, status) {
 			if (body.status) {
 				status = body.status;
 			}
-			body = body.body || '';
+			body = body.body;
 			return this.send(body, status);
 		// buffer means octet stream
 		} else if (body instanceof Buffer) {
@@ -89,23 +90,18 @@ Http.ServerResponse.prototype.send = function(body, headers, status) {
 				this.contentType('.bin');
 			}***/
 		} else {
-			if (!this.headers['content-type']) {
+			try {
+				body = JSON.stringify(body);
 				this.contentType('.json');
-				try {
-					if (body instanceof Array && body.totalCount) {
-						this.headers['content-range'] = 'items=' + body.start + '-' + body.end + '/' + body.totalCount;
-					}
-					body = JSON.stringify(body);
-					/***if ((_ref2 = this.req.query) != null ? _ref2.callback : void 0) {
-						body = this.req.query.callback.replace(/[^\w$.]/g, '') + '(' + body + ');';
-					}***/
-				} catch (err) {
-					console.error(err);
-					body = 'HZ: ' + err.stack;
+				if (Array.isArray(body) && body.totalCount) {
+					this.headers['content-range'] = 'items=' + body.start + '-' + body.end + '/' + body.totalCount;
 				}
-			} else {
-				mime = this.headers['content-type'];
-				body = serialize(body, mime);
+				// N.B. this requires request object
+				/***if ((_ref2 = this.req.query) != null ? _ref2.callback : void 0) {
+					body = this.req.query.callback.replace(/[^\w$.]/g, '') + '(' + body + ');';
+				}***/
+			} catch (err) {
+				return this.send(err);
 			}
 		}
 	// function means object with mime application/javascript

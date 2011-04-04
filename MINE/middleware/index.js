@@ -83,11 +83,6 @@ extend(Middleware, {
 });
 
 //
-// expose
-//
-module.exports = Middleware;
-
-//
 // generate standard middleware stack
 //
 Middleware.vanilla = function(options) {
@@ -100,6 +95,10 @@ Middleware.vanilla = function(options) {
 	// parse the body to req.body, req.files; parse req.url to req.uri
 	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
 	use(Middleware.body());
+
+	use(function(req, res, next) {
+		res.send(req.body);
+	});
 
 	// security
 	if (options.security) {
@@ -144,3 +143,8 @@ Middleware.vanilla = function(options) {
 	return Middleware.apply(Middleware, layers);
 
 };
+
+//
+// expose
+//
+module.exports = Middleware;

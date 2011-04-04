@@ -20,25 +20,56 @@ module.exports = function setup(options) {
 
 	// setup
 	if (options == null) options = {};
-	var formidable = require('formidable');
-	var qs = require('qs');
+	var Formidable = require('formidable');
+	var Qs = require('qs');
 	// FIXME: ensure uploadDir exists?
 	var uploadDir = options.uploadDir || 'upload';
+	// htmlparser
+	var HTMLParser = require('htmlparser');
 
-	// known parsers
-	function guess(s){
-		// input looks like a JSON -- use JSON.parse
-		var c = s.charAt(0);
-		// TODO: < signifies xml? htmlparser?
-		return (c === '{' || c === '[') ? JSON.parse(s) : qs.parse(s);
+	function parseJSON(data, next) {
+		try {
+			var r = JSON.parse(data);
+			next(null, r);
+		} catch (err) {
+			next(err);
+		}
 	}
+
+	function parseQS(data, next) {
+		try {
+			var r = Qs.parse(data);
+			next(null, r);
+		} catch (err) {
+			next(err);
+		}
+	}
+
+	function parseHTML(data, next) {
+		var handler = new HTMLParser.DefaultHandler(next, {
+			ignoreWhitespace: true,
+			verbose: false
+		});
+		var parser = new HTMLParser.Parser(handler);
+		parser.parseComplete(data);
+	}
+
+	// well-known parsers
+	function guess(s, next) {
+		// JSON: starts with { or [
+		// XML: starts woth <
+		// urlemcoded: else
+		var c = s.charAt(0);
+		(c === '{' || c === '[') ? parseJSON(s, next) : (c === '<') ? parseHTML(s, next) : parseQS(s, next);
+	}
+
 	var parsers = {
-		'application/json': JSON.parse,
-		'text/javascript': JSON.parse,
-		'application/www-urlencoded': qs.parse,
-		'application/x-www-form-urlencoded': qs.parse,
+		'application/json': parseJSON,
+		'text/javascript': parseJSON,
+		'application/www-urlencoded': parseQS,
+		'application/x-www-form-urlencoded': parseQS,
 		'application/xml': guess,
-		'text/html': guess
+//		'text/html': guess
 	};
 
 	// handler
@@ -93,13 +124,13 @@ module.exports = function setup(options) {
 				});
 				// body collected -> parse it at once
 				req.on('end', function() {
-					try {
-						if (body) {
-							req.body = parsers[type](body);
-						}
-					} catch (err) {
-						// catch parse errors
-						return next(err);
+					if (body) {
+						parsers[type](body, function(err, data) {
+							if (err) return next(err);
+							//console.log('BODY', data);
+							req.body = data;
+							next();
+						});
 					}
 					next();
 				});
@@ -108,33 +139,60 @@ module.exports = function setup(options) {
 			//
 			} else if (type === 'multipart/form-data') {
 				// setup the form reader
-				var form = new formidable.IncomingForm();
-				// TODO: control ability to upload!
-				form.uploadDir = uploadDir;
-				if (options.maxLength) {
-					form.maxFieldsSize = options.maxLength;
+				var form = new Formidable.IncomingForm();
+				// restrict big non-file parts
+				form.maxFieldsSize = options.maxLength || 8192;
+				// control ability to upload
+				// TODO: current user rights?
+				if (false) {
+					form.onPart = function(part) {
+						if (!part.filename) {
+							// let formidable handle all non-file parts
+							form.handlePart(part);
+						}
+					}
 				}
+				form.uploadDir = uploadDir;
 				// handle file upload progress
 				if (options.onUploadProgress) {
-					form.on('fileBegin', function(field, file){
+					form.on('fileBegin', function(field, file) {
 						options.onUploadProgress(file, false);
 						file
-						.on('progress', function(received){
+						.on('progress', function(received) {
 							options.onUploadProgress(file);
 						})
-						.on('end', function(){
+						.on('end', function() {
 							options.onUploadProgress(file, true);
 						})
 					});
 				}
 				// parse the body
-				form.parse(req, function(err, fields, files){
+				form.parse(req, function(err, fields, files) {
 					if (err) return next(err);
 					req.body = fields;
 					req.files = files;
 					next();
 				});
-			// TODO: htmlparser!
+			// htmlparser
+			} else if (type === 'text/html') {
+				var html = new HTMLParser.DefaultHandler(function(err, dom) {
+					if (err) return next(err);
+					req.body = dom;
+					next();
+				}, {
+					ignoreWhitespace: true,
+					verbose: false
+				});
+				var parser = new HTMLParser.Parser(html);
+				req.on('data', function(chunk) {
+					parser.parseChunk(chunk);
+				});
+				req.on('error', function(err) {
+					parser.done();
+				});
+				req.on('end', function() {
+					parser.done();
+				});
 			} else {
 				next();
 			}
