@@ -103,7 +103,7 @@ Next({}, function(err, result, next) {
 				// the very first user of type 'admin' becomes the root
 				// N.B. typically at bootstrap you need to enable config.security.bypass,
 				// create the first admin user by PUTting to /Admin/_new, and
-				// redisable config.security.bypass
+				// to re-disable config.security.bypass
 				Admin.queryAny(context, 'select(id,roles)&limit(1)', step);
 			}, function(err, admins, step) {
 				//console.log('ADMINS', arguments);
@@ -152,7 +152,16 @@ Next({}, function(err, result, next) {
 				console.log('USERADDED', err, user);
 				if (err) return next(err);
 				// TODO: node-mailer data.id, data.password
-				next(null, user);
+				if (user.email) {
+					require('../lib/email').mail('dvv854@gmail.com', 'signup', 'signedupfrom', function(err) {
+						if (err) console.log('MAILERR', err.stack||err);
+						step(null, user);
+					});
+				} else {
+					step(null, user);
+				}
+			}, function(err, user, step) {
+				next(err, user);
 			});
 		};
 		//
@@ -368,7 +377,7 @@ Next({}, function(err, result, next) {
 		Next(null, function(err, result, next) {
 			Self._getAny(null, null, uid, next);
 		}, function(err, user) {
-			console.log('CREDS', arguments);
+			//console.log('CREDS', arguments);
 			// user not found
 			if (!user) {
 				// logout
@@ -382,11 +391,11 @@ Next({}, function(err, result, next) {
 				if (!user.password || user.blocked) {
 					callback('userblocked');
 				} else if (user.password !== encryptPassword(password, user.salt)) {
-					console.log('CREDS???', user.password, user.salt, encryptPassword(password, user.salt));
+					//console.log('CREDS???', user.password, user.salt, encryptPassword(password, user.salt));
 					// N.B. if password is false return the user existence status
 					callback('userinvalid', password === false ? true : undefined);
 				} else {
-					console.log('CREDS!!!', uid);
+					//console.log('CREDS!!!', uid);
 					callback(null, uid);
 				}
 			}

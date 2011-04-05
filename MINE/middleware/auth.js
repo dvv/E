@@ -109,10 +109,6 @@ module.exports.form = function setup(mount, options){
 				req.session.uid = uid;
 			}
 			console.log('SESS', req.session);
-			/*require('../lib/email').mail('dvv854@gmail.com', 'login', 'loggedinfrom' + req.socket.remoteAddress, function(err) {
-				if (err) console.log('MAILERR', err.stack||err);
-				res.redirect(req.session ? '/' : mount);
-			});*/
 			res.redirect(req.session ? '/' : mount);
 		}
 
@@ -253,6 +249,7 @@ module.exports.form = function setup(mount, options){
 		} else if (options.validate) {
 			var data = req.body;
 			// check if password is confirmed at signup
+			console.log('NATIVE', data);
 			if (data.signup && data.password && data.password2 === data.password) {
 				validateOrSignup(data);
 			// check if password is given at sigin
