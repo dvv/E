@@ -1,6 +1,6 @@
 <div id="user">
-	Hi, <%= user.name || user.email || user.id %>!
 	<% if (user.id) { %>
+	Hi, <%= user.name || user.email || user.id %>!
 	<form action="/auth" method="post">
 		<input type="submit" value="Sign Out" />
 	</form>

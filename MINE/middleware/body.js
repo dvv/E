@@ -19,12 +19,13 @@ var REGEXP_IP = /^\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}$/;
 module.exports = function setup(options) {
 
 	// setup
-	if (options == null) options = {};
-	var Formidable = require('formidable');
+	if (!options) options = {};
+
+	// require external parsers
 	var Qs = require('qs');
+	var Formidable = require('formidable');
 	// FIXME: ensure uploadDir exists?
 	var uploadDir = options.uploadDir || 'upload';
-	// htmlparser
 	var HTMLParser = require('htmlparser');
 
 	function parseJSON(data, next) {
@@ -54,9 +55,10 @@ module.exports = function setup(options) {
 		parser.parseComplete(data);
 	}
 
+	// guess the parser by the first char
 	function guess(s, next) {
 		// JSON: starts with { or [
-		// XML: starts woth <
+		// XML: starts with <
 		// urlemcoded: else
 		var c = s.charAt(0);
 		(c === '{' || c === '[') ? parseJSON(s, next) : (c === '<') ? parseHTML(s, next) : parseQS(s, next);
@@ -68,19 +70,25 @@ module.exports = function setup(options) {
 		'text/javascript': parseJSON,
 		'application/www-urlencoded': parseQS,
 		'application/x-www-form-urlencoded': parseQS,
-		'application/xml': guess
+		'application/xml': guess,
+		// FIXME: streaming version?
+		'text/html': guess
 	};
 
 	// handler
 	return function(req, res, next) {
-		var h;
+
 		// swallow .. and other URL quirks
 		req.url = Path.normalize(req.url);
+
 		// parse URL
 		req.uri = parseUrl(req.url);
+
 		// skip leading ? in querystring
 		req.uri.search = (req.uri.search || '').substring(1);
+
 		// honor X-Forwarded-For: possibly set by a reverse proxy
+		var h;
 		if (h = req.headers['x-forwarded-for']) {
 			if (REGEXP_IP.test(h)) {
 				req.socket.remoteAddress = h;
@@ -88,25 +96,33 @@ module.exports = function setup(options) {
 			// forget the source of knowledge
 			delete req.headers['x-forwarded-for'];
 		}
+
 		// honor method override
 		if (h = req.headers['x-http-method-override']) {
 			req.method = h.toUpperCase();
 			// forget the source of knowledge
 			delete req.headers['x-http-method-override'];
 		}
+
 		// bodyful request?
 		req.body = {};
+		//console.log('BODY', req.headers);
+		// N.B. if method is overridden, any method can contain body
 		//if (req.method === 'POST' || req.method === 'PUT') {
+
 			// get content type. N.B. can't just test equality, charset may be set
 			// TODO: req.is()?!
 			var type = req.headers['content-type'];
 			type = (type) ? type.split(';')[0] : 'application/xml';
+
 			//
-			// supported content-type
+			// parser registered for this content-type?
 			//
 			if (parsers.hasOwnProperty(type)) {
+
 				// set body encoding
 				req.setEncoding('utf8');
+
 				// collect the body
 				var body = '';
 				var len = options.maxLength;
@@ -117,10 +133,12 @@ module.exports = function setup(options) {
 						next(SyntaxError('Length exceeded'));
 					}
 				});
+
 				// bump on read error
 				req.on('error', function(err) {
 					next(err);
 				});
+
 				// body collected -> parse it at once
 				req.on('end', function() {
 					if (!body) return next();
@@ -131,16 +149,20 @@ module.exports = function setup(options) {
 						next();
 					});
 				});
+
 			//
 			// formidable
 			//
 			} else if (type === 'multipart/form-data') {
+
 				// setup the form reader
 				var form = new Formidable.IncomingForm();
 				// restrict big non-file parts
 				form.maxFieldsSize = options.maxLength || 8192;
+
 				// control ability to upload
 				// TODO: current user rights?
+				form.uploadDir = uploadDir;
 				if (false) {
 					form.onPart = function(part) {
 						if (!part.filename) {
@@ -149,7 +171,7 @@ module.exports = function setup(options) {
 						}
 					}
 				}
-				form.uploadDir = uploadDir;
+
 				// handle file upload progress
 				if (options.onUploadProgress) {
 					form.on('fileBegin', function(field, file) {
@@ -163,6 +185,7 @@ module.exports = function setup(options) {
 						})
 					});
 				}
+
 				// parse the body
 				form.parse(req, function(err, fields, files) {
 					if (err) return next(err);
@@ -171,8 +194,13 @@ module.exports = function setup(options) {
 					//return res.send(arguments);
 					next();
 				});
+
+			//
 			// htmlparser
+			//
 			} else if (type === 'text/html') {
+
+				// setup the parser
 				var html = new HTMLParser.DefaultHandler(function(err, dom) {
 					if (err) return next(err);
 					req.body = dom;
@@ -181,6 +209,8 @@ module.exports = function setup(options) {
 					ignoreWhitespace: true,
 					verbose: false
 				});
+
+				// parse
 				var parser = new HTMLParser.Parser(html);
 				req.on('data', function(chunk) {
 					parser.parseChunk(chunk);
@@ -191,11 +221,18 @@ module.exports = function setup(options) {
 				req.on('end', function() {
 					parser.done();
 				});
+
+			//
+			// unsupported content-type. skip
+			//
 			} else {
 				next();
 			}
+
 		//} else {
 		//	return next();
 		//}
+
 	};
+
 };

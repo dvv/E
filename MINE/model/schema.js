@@ -2,6 +2,10 @@
 
 var db = require('../lib/database');
 
+// TODO: move to db as helpers?
+var REGEXP_IP = /^\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}$/;
+var REGEXP_EMAIL = /^([\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+\.)*[\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+@((((([a-z0-9]{1}[a-z0-9\-]{0,62}[a-z0-9]{1})|[a-z])\.)+[a-z]{2,6})|(\d{1,3}\.){3}\d{1,3}(\:\d{1,5})?)$/i;
+
 //
 // define standard roles priority
 //
@@ -26,7 +30,7 @@ var User = {
 		// subdivision, to denote user flavor
 		type: {
 			type: 'string',
-			'enum': ['Admin', 'Affiliate']
+			'enum': ['admin', 'affiliate']
 		},
 		// array of role names, which define the access level to a certain entity
 		// role name is <Entity>-<level>
@@ -100,7 +104,7 @@ var User = {
 		// user email, to communicate
 		email: {
 			type: 'string',
-			pattern: /^([\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+\.)*[\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+@((((([a-z0-9]{1}[a-z0-9\-]{0,62}[a-z0-9]{1})|[a-z])\.)+[a-z]{2,6})|(\d{1,3}\.){3}\d{1,3}(\:\d{1,5})?)$/i,
+			pattern: REGEXP_EMAIL,
 			optional: true
 		},
 		// user time zone
@@ -121,7 +125,7 @@ var Admin = {
 	properties: {
 		id: User.properties.id,
 		// type is always 'admin'
-		type: db.fix(db.ro(User.properties.type), 'admin'),
+		type: db.fix(User.properties.type, 'admin'),
 		// default role is to author new admins
 		roles: db.def(User.properties.roles, ['Admin-author']),
 		// admin can block users
@@ -157,7 +161,7 @@ var Affiliate = {
 	properties: {
 		id: User.properties.id,
 		// type is always 'affiliate'
-		type: db.fix(db.ro(User.properties.type), 'affiliate'),
+		type: db.fix(User.properties.type, 'affiliate'),
 		// default affiliate role is nothing
 		roles: db.def(User.properties.roles, []),
 		// affiliate can block subordinates

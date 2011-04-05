@@ -13,12 +13,11 @@ function sha1(data, key) {
 	hmac.update(data && String(data) || '');
 	return hmac.digest('hex');
 }
-function nonce() {
-	return (Date.now() & 0x7fff).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36);
-}
 
 //
 // form based authentication, with optional OpenID brokers support
+//
+// if options.signup = function(data, callback) is given, self-registration is allowed
 //
 module.exports.form = function setup(mount, options){
 
@@ -48,7 +47,7 @@ module.exports.form = function setup(mount, options){
 		});
 	}
 	
-	// HTTP GET helper
+	// HTTP GET helper, to query OpenID provider
 	var wget = require('../lib/wget');
 
 	// handler
@@ -82,7 +81,8 @@ module.exports.form = function setup(mount, options){
 					domain: options.janrain.domain
 				},
 				loginza: options.loginza,
-				tokenUrl: encodeURI(options.signinURL)
+				tokenUrl: encodeURI(options.signinURL),
+				signup: Boolean(options.signup)
 			});
 			return;
 		}
@@ -96,131 +96,19 @@ module.exports.form = function setup(mount, options){
 		// FIXME: BROKEN...
 
 		// authentication helper
-		function authenticate(err, value) {
-			//console.log('WGOT', err, value);
+		function authenticate(err, uid) {
+			console.log('AUTHENTICATE', err && err.stack || err, uid);
 			// no such user or logout? -> remove req.session
-			if (!value) {
+			if (err || !uid) {
 				// FIXME: instead set a flash with error?
 				delete req.session;
-				// no such user? -> try to signup (if enabled)
-				if (err === 'usernotfound' && options.signup) {
-					options.signup(req.body, function(err, user) {
-						//console.log('SIGNUP?', req.body, err && err.stack, user);
-						// FIXME: could result in endless recursion?
-						authenticate(err, user && user.id);
-					});
-					return;
-				}
-			// ok? -> set req.session
+			// ok? -> set req.session.uid
 			} else {
-				var data;
-				//console.log('SIGNEDIN', result);
-				//
-				// native form
-				//
-				if (value.user) {
-					req.session = {uid: result.user.id};
-				//
-				// loginza?
-				// signup unless user exists, and copy info from profile
-				//
-				} else if (result.identity) {
-					var profile = result;
-					var uid = sha1(profile.identity);
-					// twitter
-					if (profile.provider === 'http://twitter.com/') {
-						data = {
-							id: uid,
-							name: profile.name && profile.name.full_name || undefined,
-							//email: ???,
-							photo: profile.photo
-						};
-					// google
-					} else if (profile.provider === 'https://www.google.com/accounts/o8/ud') {
-						data = {
-							id: uid,
-							name: profile.name && profile.name.full_name || undefined,
-							email: profile.email,
-							photo: profile.photo
-						};
-					// vkontakte.ru
-					} else if (profile.provider === 'http://vkontakte.ru/') {
-						data = {
-							id: uid,
-							name: profile.name && (profile.name.first_name + ' ' + profile.name.last_name) || undefined,
-							//email: ???,
-							photo: profile.photo
-						};
-					// TODO: other providers
-					} else {
-						// ...
-					}
-					// ...
-				//
-				// janrain?
-				// signup unless user exists, and copy info from profile
-				//
-				} else if (result.stat === 'ok' && result.profile) {
-					var profile = result.profile;
-					var uid = sha1(profile.identifier); //url?
-					// twitter
-					if (profile.providerName === 'Twitter') {
-						data = {
-							id: uid,
-							name: profile.displayName || undefined,
-							//email: ???,
-							photo: profile.photo
-						};
-					// facebook
-					} if (profile.providerName === 'Facebook') {
-						data = {
-							id: uid,
-							name: profile.displayName || undefined,
-							email: profile.verifiedEmail || profile.email,
-							photo: profile.photo
-						};
-					// google
-					} if (profile.providerName === 'Google') {
-						data = {
-							id: uid,
-							name: profile.name.formatted || undefined,
-							email: profile.verifiedEmail || profile.email,
-							photo: profile.photo
-						};
-					// TODO: other providers
-					} else {
-						// ...
-					}
-				// other brokers
-				} else {
-				}
-				//console.log('TOCREATE', data);
-				//
-				// try to find local user authenticated by an OpenID provider
-				//
-				if (data) {
-					// user exists?
-					options.validate(data.id, false, function(err) {
-						// no such user? -> try to signup (if enabled)
-						if (err === 'usernotfound' && options.signup) {
-							data.password = nonce(); // N.B. setting password w/o email leads to bricked user
-							options.signup(data, function(err, user) {
-								//console.log('SIGNUP?', data, err && err.stack || err, user);
-								// FIXME: could result in endless recursion?
-								authenticate(err, user ? {user: user} : undefined);
-							});
-						// user exists and is validated by provider
-						} else if (err === 'userinvalid') {
-							authenticate(null, {user: {id: data.id}});
-						// other error -> logout
-						} else {
-							authenticate();
-						}
-					});
-					return;
-				}
+				console.log('SIGNEDIN', uid);
+				if (!req.session) req.session = {};
+				req.session.uid = uid;
 			}
-			//console.log('SESS', req.session, result);
+			console.log('SESS', req.session);
 			/*require('../lib/email').mail('dvv854@gmail.com', 'login', 'loggedinfrom' + req.socket.remoteAddress, function(err) {
 				if (err) console.log('MAILERR', err.stack||err);
 				res.redirect(req.session ? '/' : mount);
@@ -228,16 +116,134 @@ module.exports.form = function setup(mount, options){
 			res.redirect(req.session ? '/' : mount);
 		}
 
+		// another authentication helper
+		function validateOrSignup(data) {
+			console.log('VALIDATE', data);
+			// if password is given, use it
+			// else check if user exists
+			options.validate(data.id, data.password || false, function(err) {
+				console.log('VALIDATED?', err);
+				// no such user? -> try to signup (if enabled)
+				if (err === 'usernotfound' && options.signup) {
+					options.signup(data, function(err, user) {
+						authenticate(err, data.id);
+					});
+				// user exists and is validated by provider
+				} else if (!err || (err === 'userinvalid' && !data.password)) {
+					authenticate(null, data.id);
+				// other error -> logout
+				} else {
+					authenticate();
+				}
+			});
+		}
+
 		// got auth token from OpenID providers?
 		var token = req.body.token;
 		// OpenID provider
 		if (token) {
-			var referrer = req.header('referer') || req.header('referrer') || '';
+			var referrer = req.headers.referer || req.headers.referrer || '';
 			// try first matching provider
 			for (var i = 0; i < openid.length; i++) {
 				var provider = openid[i];
 				if (referrer.match(provider.referrer)) {
-					wget.get(provider.getUrl(token), authenticate);
+					wget.get(provider.getUrl(token), function(err, result) {
+						console.log('WGOT', arguments);
+						// error? -> logout
+						if (err) return authenticate();
+						// got user profile
+						// signup unless user exists, and copy info from profile
+						//
+						// loginza?
+						//
+						if (provider.name === 'loginza' && result.identity) {
+							var profile = result;
+							var uid = sha1(profile.identity);
+							var data;
+							// twitter
+							if (profile.provider === 'http://twitter.com/') {
+								data = {
+									id: uid,
+									name: profile.name && profile.name.full_name || undefined,
+									email: profile.email,
+									photo: profile.photo
+								};
+							// google
+							} else if (profile.provider === 'https://www.google.com/accounts/o8/ud') {
+								data = {
+									id: uid,
+									name: profile.name && profile.name.full_name || undefined,
+									email: profile.email,
+									photo: profile.photo
+								};
+							// vkontakte.ru
+							} else if (profile.provider === 'http://vkontakte.ru/') {
+								data = {
+									id: uid,
+									name: profile.name && (profile.name.first_name + ' ' + profile.name.last_name) || undefined,
+									email: profile.email,
+									photo: profile.photo
+								};
+							// other providers
+							// TODO: try
+							} else {
+								data = {
+									id: uid,
+									name: profile.name && profile.name.full_name || profile.name,
+									email: profile.email,
+									photo: profile.photo
+								};
+							}
+							// ...
+						//
+						// janrain?
+						//
+						} else if (provider.name === 'janrain' && result.stat === 'ok' && result.profile) {
+							var profile = result.profile;
+							var uid = sha1(profile.identifier); //url?
+							var data;
+							// twitter
+							if (profile.providerName === 'Twitter') {
+								data = {
+									id: uid,
+									name: profile.displayName || undefined,
+									email: profile.email,
+									photo: profile.photo
+								};
+							// facebook
+							} if (profile.providerName === 'Facebook') {
+								data = {
+									id: uid,
+									name: profile.displayName || undefined,
+									email: profile.verifiedEmail || profile.email,
+									photo: profile.photo
+								};
+							// google
+							} if (profile.providerName === 'Google') {
+								data = {
+									id: uid,
+									name: profile.name.formatted || undefined,
+									email: profile.verifiedEmail || profile.email,
+									photo: profile.photo
+								};
+							// TODO: other providers
+							} else {
+								// ...
+							}
+						// TODO: other brokers
+						} else {
+						}
+						console.log('TOCREATE', data);
+						//
+						// try to find local user authenticated by an OpenID provider
+						//
+						if (data) {
+							validateOrSignup(data);
+						// not authenticated by brokers -> logout
+						} else {
+							authenticate();
+						}
+					});
 					return;
 				}
 			}
@@ -245,7 +251,17 @@ module.exports.form = function setup(mount, options){
 			authenticate();
 		// native form login
 		} else if (options.validate) {
-			options.validate(req.body.id, req.body.password, authenticate);
+			var data = req.body;
+			// check if password is confirmed at signup
+			if (data.signup && data.password && data.password2 === data.password) {
+				validateOrSignup(data);
+			// check if password is given at sigin
+			} else if (data.signin && data.password) {
+				validateOrSignup(data);
+			// else logout
+			} else {
+				authenticate();
+			}
 		// no authentication provider
 		} else {
 			next();

@@ -34,7 +34,7 @@ Next(null, function(err, result, next) {
 	var Middleware = require('./middleware');
 	deepCopy({
 		// signup function
-		signup: model.signup,
+		signup: config.security.selfSignup ? model.signup : undefined,
 		// get capability
 		getCapability: model.getCapability,
 		// native authentication
@@ -96,12 +96,12 @@ Next(null, function(err, result, next) {
 	var http = require('http').createServer();
 	http.on('request', middleware);
 	http.listen(3000);
-	var https = require('https').createServer({
-		key: require('fs').readFileSync('key.pem', 'utf8'),
-		cert: require('fs').readFileSync('cert.pem', 'utf8')
-	});
-	https.on('request', middleware);
-	https.listen(4000);
+	//var https = require('https').createServer({
+	//	key: require('fs').readFileSync('key.pem', 'utf8'),
+	//	cert: require('fs').readFileSync('cert.pem', 'utf8')
+	//});
+	//https.on('request', middleware);
+	//https.listen(4000);
 	return;
 
 	//

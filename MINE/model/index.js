@@ -89,11 +89,14 @@ Next({}, function(err, result, next) {
 		//
 		store.add = function(context, data, next) {
 			if (!data) data = {};
+			// N.B. setting password w/o email leads to bricked user
+			// so if user has email, password will be set to a nonce, and mailed
+			// if user has no email, password will be set to uid
+			// FIXME: this is a hole
 			if (!data.password) {
+				data.password = data.email ? nonce() : data.id;
 				//data.password = nonce().substring(0, 7);
-				return next('Need password');
 			}
-			if (!data.email) return next('Need email');
 			var salt = nonce();
 			var password = encryptPassword(data.password, salt);
 			Next(null, function(err, result, step) {
@@ -109,6 +112,7 @@ Next({}, function(err, result, next) {
 				if (!admins.length) {
 					// if no context provided -> self-registration is meant,
 					// context should mention root's id and full roles
+					// parent's id should be fake
 					if (!context) context = {user: {id: nonce()+nonce()+nonce(), roles: fullRole}};
 					// add admin user
 					Admin.add(context, {
@@ -133,7 +137,7 @@ Next({}, function(err, result, next) {
 					// set status to 'approved'
 					data.status = 'approved';
 				}
-				console.log('ADD?', data, context, password);
+				console.log('ADD?', data);//, context, password);
 				// add typed user
 				orig.add(context, {
 					id: data.id,
@@ -364,6 +368,7 @@ Next({}, function(err, result, next) {
 		Next(null, function(err, result, next) {
 			Self._getAny(null, null, uid, next);
 		}, function(err, user) {
+			console.log('CREDS', arguments);
 			// user not found
 			if (!user) {
 				// logout
@@ -377,9 +382,11 @@ Next({}, function(err, result, next) {
 				if (!user.password || user.blocked) {
 					callback('userblocked');
 				} else if (user.password !== encryptPassword(password, user.salt)) {
+					console.log('CREDS???', user.password, user.salt, encryptPassword(password, user.salt));
 					// N.B. if password is false return the user existence status
 					callback('userinvalid', password === false ? true : undefined);
 				} else {
+					console.log('CREDS!!!', uid);
 					callback(null, uid);
 				}
 			}

@@ -127,11 +127,14 @@ var Database = (function() {
       search: query.search,
       params: query.meta
     });
+//console.log('QUERY?', query.search, query.meta);
     this.collections[collection].find(query.search, query.meta, function(err, cursor) {
+//console.log('QUERY', err);
       if (err) {
         return typeof callback == "function" ? callback(err.message) : void 0;
       }
       cursor.toArray(function(err, docs) {
+//console.log('QUERY!', err, docs);
         var doc, i, _len;
         if (err) {
           return typeof callback == "function" ? callback(err.message) : void 0;
@@ -210,6 +213,7 @@ var Database = (function() {
         next(null, document);
       }
     }, function(err, document, next) {
+//console.log('AADDDD', document, schema);
       var parents, _ref, _ref2, _ref3;
       if (err) {
         return next(err);
