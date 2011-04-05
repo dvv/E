@@ -15,6 +15,11 @@ var getMime = require('simple-mime')('application/octet-stream');
 //
 // serve static content from `root`
 //
+// options.cacheThreshold:
+//   null/undefined - don't cache
+//   0 - cache file stat
+//   N>0 - cache both file stat and file contents for files of length <= N
+//
 module.exports = function setup(mount, root, index, options) {
 
 	// setup
@@ -24,6 +29,7 @@ module.exports = function setup(mount, root, index, options) {
 
 	// N.B. we aggressively cache since we rely on watch/reload
 	var statCache = {};
+	var fileCache = {};
 
 	// handler
 	return function handler(req, res, next) {
@@ -39,18 +45,18 @@ module.exports = function setup(mount, root, index, options) {
 		if (path[path.length - 1] === '/') path = path.substr(0, path.length - 1);
 
 		// check if file stats is cached
-		if (statCache.hasOwnProperty(path)) {
+		if (options.cacheThreshold != null && statCache.hasOwnProperty(path)) {
 			onStat(null, statCache[path]);
 		// get and cache file stats
 		} else {
 			Fs.stat(path, function(err, stat) {
 				//process.log('STAT!', path, err, stat);
-				if (!err) statCache[path] = stat;
+				if (options.cacheThreshold != null && !err) statCache[path] = stat;
 				onStat(err, stat);
 			});
 		}
 
-		// file exists?
+		// file statistics obtained
 		function onStat(err, stat) {
 
 			// file not found -> bail out
@@ -107,16 +113,31 @@ module.exports = function setup(mount, root, index, options) {
 			}
 
 			// stream the file contents to the response
-			// TODO: cache contents, sliced Buffer
-			var stream = Fs.createReadStream(path, {
-				start: start,
-				end: end
-			});
-			stream.once('data', function(chunk) {
-				res.writeHead(code, headers);
-			});
-			stream.pipe(res);
-			stream.on('error', next);
+			if (options.cacheThreshold === 0 || stat.size > options.cacheThreshold) {
+				var stream = Fs.createReadStream(path, {
+					start: start,
+					end: end
+				});
+				stream.once('data', function(chunk) {
+					res.writeHead(code, headers);
+				});
+				stream.pipe(res);
+				stream.on('error', next);
+			// serve cached contents
+			} else {
+				// cached?
+				if (fileCache.hasOwnProperty(path)) {
+					var cached = fileCache[path];
+					res.end((start > 0 || end != stat.size-1) ? cached.slice(start, end+1) : cached);
+				// read and cache
+				} else {
+					Fs.readFile(path, function(err, data) {
+						if (err) return next(err);
+						fileCache[path] = data;
+						onStat(null, stat);
+					});
+				}
+			}
 
 		}
 	};

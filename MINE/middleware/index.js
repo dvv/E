@@ -85,7 +85,7 @@ extend(Middleware, {
 //
 // generate standard middleware stack
 //
-Middleware.vanilla = function(options) {
+Middleware.vanilla = function(root, options) {
 
 	if (!options) options = {};
 	var layers = [];
@@ -133,8 +133,8 @@ Middleware.vanilla = function(options) {
 	}));
 
 	// serve static stuff under ./public
-	use(Middleware.static('/', __dirname + '/public', null, {
-		//cacheMaxFileSizeToCache: 1024, // set to limit the size of cacheable file
+	use(Middleware.static('/', root + '/public', null, {
+		cacheThreshold: 32768, // set to limit the size of cacheable file
 	}));
 
 	//

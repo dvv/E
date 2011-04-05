@@ -64,7 +64,7 @@ if (server) {
 			}]
 		];
 		config.routes = routes;
-		var middleware = Middleware.vanilla(config);
+		var middleware = Middleware.vanilla(__dirname, config);
 		server.on('request', middleware);
 		// TODO: reuse for HTTPS
 

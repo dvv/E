@@ -1,7 +1,7 @@
 #!/bin/sh
 
-URL=http://localhost:3000/index.html
-#URL=http://localhost:3000/scripts/main.js
-#URL=http://localhost:3000/main.js
+URL=http://localhost:3000/rql.js
+#URL=http://localhost:3000/index.html
+URL=http://localhost:3000/main.js
 
 ab -n10000 -c100 $URL

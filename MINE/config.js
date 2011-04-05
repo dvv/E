@@ -3,6 +3,7 @@
 module.exports = {
 	server: {
 		port: 3000,
+		//workers: 2,
 		/*ssl: {
 			key: 'key.pem',
 			cert: 'cert.pem'

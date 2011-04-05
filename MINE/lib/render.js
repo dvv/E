@@ -85,12 +85,12 @@ module.exports = function render(name, options, callback) {
 		callback(null, cache[name](options.vars));
 	// cache
 	} else {
-		name = Path.join(options.path, name);
-		if (options.ext) name += options.ext;
-		//console.log('RENDER', name);
-		Fs.readFile(name, function(err, html) {
+		var filename = Path.join(options.path, Path.normalize(name));
+		if (options.ext) filename += options.ext;
+		//console.log('RENDER', name, filename);
+		Fs.readFile(filename, function(err, text) {
 			if (err) return callback(err.errno === ENOENT ? null : err, null);
-			cache[name] = template(html.toString('utf8'));
+			cache[name] = template(text.toString('utf8'));
 			callback(null, cache[name](options.vars));
 		});
 	}
