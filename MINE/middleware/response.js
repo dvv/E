@@ -118,11 +118,7 @@ Http.ServerResponse.prototype.send = function(body, headers, status) {
 		}
 	}
 	// merge headers
-	// FIXME: this.setHeader()?
-	for (k in headers) {
-		v = headers[k];
-		this.headers[k] = v;
-	}
+	extend(this.headers, headers);
 	// finalize the response
 	this.writeHead(status || 200, this.headers);
 	return this.end(body);
@@ -135,30 +131,4 @@ Http.ServerResponse.prototype.contentType = function(type) {
 Http.ServerResponse.prototype.redirect = function(url, status) {
 	this.writeHead(status || 302, {location: url});
 	this.end();
-};
-
-var render = require('../lib/render');
-Http.ServerResponse.prototype.partial = function(name, vars, callback) {
-	var self = this;
-	render(name, {path: __dirname + '/../views', ext: '.html', vars: vars}, function(err, result) {
-		//console.log('RES.PARTIAL', arguments);
-		if (callback) {
-			callback(err, result);
-		} else {
-			self.send(err || result);
-		}
-	});
-};
-Http.ServerResponse.prototype.render = function(name, vars, callback) {
-	var self = this;
-	self.partial(name, vars, function(errBody, body) {
-		self.partial('layout', extend({}, vars, {body: body}), function(err, result) {
-			//console.log('RES.RENDER', arguments);
-			if (callback) {
-				callback(err, result);
-			} else {
-				self.send(err || result);
-			}
-		});
-	});
 };

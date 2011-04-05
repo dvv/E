@@ -63,6 +63,7 @@ function template(str, data, settings) {
 	return data ? func(data) : func;
 }
 
+var Http = require('http');
 var Fs = require('fs');
 var Path = require('path');
 var ENOENT = require('constants').ENOENT;
@@ -74,25 +75,54 @@ var cache = {};
 //
 // return templated output, data from options.vars
 //
-module.exports = function render(name, options, callback) {
+module.exports = function setup(options) {
 
 	// setup
 	if (!options) options = {};
-	if (!options.vars) options.vars = {};
 
-	// render from cache
-	if (cache.hasOwnProperty(name)) {
-		callback(null, cache[name](options.vars));
-	// cache
-	} else {
-		var filename = Path.join(options.path, Path.normalize(name));
-		if (options.ext) filename += options.ext;
-		//console.log('RENDER', name, filename);
-		Fs.readFile(filename, function(err, text) {
-			if (err) return callback(err.errno === ENOENT ? null : err, null);
-			cache[name] = template(text.toString('utf8'));
-			callback(null, cache[name](options.vars));
+	// improve HTTP response
+	Http.ServerResponse.prototype.partial = function(name, vars, callback) {
+		var self = this;
+		render(name, vars, function(err, result) {
+			//console.log('RES.PARTIAL', arguments);
+			if (callback) {
+				callback(err, result);
+			} else {
+				self.send(err || result);
+			}
 		});
+	};
+	Http.ServerResponse.prototype.render = function(name, vars, callback) {
+		var self = this;
+		self.partial(name, vars, function(errBody, body) {
+			self.partial('layout', extend({}, vars, {body: body}), function(err, result) {
+				//console.log('RES.RENDER', arguments);
+				if (callback) {
+					callback(err, result);
+				} else {
+					self.send(err || result);
+				}
+			});
+		});
+	};
+
+	// renderer
+	function render(name, vars, callback) {
+		if (!vars) vars = {};
+		// render from cache
+		if (cache.hasOwnProperty(name)) {
+			callback(null, cache[name](vars));
+		// cache
+		} else {
+			var filename = Path.join(options.path, Path.normalize(name));
+			if (options.ext) filename += options.ext;
+			//console.log('RENDER', name, filename);
+			Fs.readFile(filename, function(err, text) {
+				if (err) return callback(err.errno === ENOENT ? null : err, null);
+				cache[name] = template(text.toString('utf8'));
+				callback(null, cache[name](vars));
+			});
+		}
 	}
 
 };

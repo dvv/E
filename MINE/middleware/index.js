@@ -9,13 +9,11 @@
 
 require('../lib/helpers');
 
-//
-// improve HTTP request and response
-//
+// improve HTTP reponse
 require('./response');
 
 //
-// error handler uses improved res.send
+// error handler uses res.send
 //
 function errorHandler(req, res, err) {
 	if (err) {
@@ -88,13 +86,22 @@ extend(Middleware, {
 Middleware.vanilla = function(root, options) {
 
 	if (!options) options = {};
-	var layers = [];
 
-	function use(layer) { layers.push(layer); }
+	// setup views renderer
+	require('./render')({
+		path: root + '/views',
+		ext: '.html'
+	});
+
+	// collect stack
+	var layers = [];
+	function use(layer) { layers.push.apply(layers, Array.isArray(layer) ? layer : [layer]); }
 
 	// parse the body to req.body, req.files; parse req.url to req.uri
 	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
 	use(Middleware.body());
+
+	//use(Middleware.log());
 
 	//use(function(req, res, next) { res.send(req.body); });
 
@@ -121,9 +128,7 @@ Middleware.vanilla = function(root, options) {
 
 	// handle manually defined routes
 	if (options.routes) {
-		options.routes.forEach(function(route) {
-			use(Middleware.mount.apply(Middleware.mount, route));
-		});
+		use(Middleware.mount(options.routes));
 	}
 
 	// ReST/JSON-RPC handler

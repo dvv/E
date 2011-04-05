@@ -13,14 +13,15 @@
 module.exports = function setup(options) {
 
 	// setup
-	if (options == null) options = {};
+	if (!options) options = {};
 
 	// handler
 	return function(req, res, next) {
 		var end = res.end;
 		res.end = function() {
-			console.log(("REQUEST " + req.method + " " + req.url + " ") + JSON.stringify(req.body) + " -- RESPONSE " + JSON.stringify(arguments));
-			end.apply(this, arguments);
+			console.log(('REQUEST ' + req.method + ' ' + req.url + ' ') + JSON.stringify(req.body) + ' -- RESPONSE ' + JSON.stringify(arguments));
+			res.end = end;
+			res.end.apply(this, arguments);
 		};
 		next();
 	};

@@ -1,5 +1,12 @@
 'use strict';
 
+/*
+ *
+ * Copyright(c) 2011 Vladimir Dronnikov <dronnikov@gmail.com>
+ * MIT Licensed
+ *
+*/
+
 //
 // thanks creationix/creationix/controller
 //
@@ -8,7 +15,9 @@ var Url = require('url');
 var Fs = require('fs');
 var Path = require('path');
 
+//
 // MVC style controller routing
+//
 module.exports = function setup(root, controllerFolder) {
 
 	// setup
@@ -49,10 +58,9 @@ module.exports = function setup(root, controllerFolder) {
 
 		// Find the method
 		var method = parts.shift();
-		// FIXME: shouldn't we res.send(405)?
 		if (!controller.hasOwnProperty(method)) { return next(); }
 
-		// Call it!
+		// Call the controller's method
 		var args = [req, res, next];
 		args.push.apply(args, parts);
 		controller[method].apply(controller, args);

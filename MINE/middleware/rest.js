@@ -40,7 +40,7 @@ module.exports = function setup(root, options) {
 
 		//process.log('PARTS', parts);
 
-		// find the resource
+		// find the resource name/id pair
 		var resource = parts[0];
 		var id = parts[1];
 

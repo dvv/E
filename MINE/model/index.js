@@ -357,16 +357,15 @@ Next({}, function(err, result, next) {
 	}
 
 	//
-	// verify provided credentials, return the user context
+	// verify provided credentials
 	// used in auth middleware
 	//
 	function checkCredentials(uid, password, callback) {
 		Next(null, function(err, result, next) {
-			getCapability(uid, next);
-		}, function(err, context) {
-			var user = context.user;
+			Self._getAny(null, null, uid, next);
+		}, function(err, user) {
 			// user not found
-			if (!user.id) {
+			if (!user) {
 				// logout
 				if (!uid) {
 					callback();
@@ -381,7 +380,7 @@ Next({}, function(err, result, next) {
 					// N.B. if password is false return the user existence status
 					callback('userinvalid', password === false ? true : undefined);
 				} else {
-					callback(null, context);
+					callback(null, uid);
 				}
 			}
 		});

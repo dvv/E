@@ -29,9 +29,9 @@ module.exports = function setup(verb, mount, handler) {
 		};
 
 	//
-	// 2 or less parameters -> method chooses the key of handlers hash
+	// 2 parameters -> method chooses the key of handlers hash
 	//
-	} else {
+	} else if (mount) {
 
 		handler = mount;
 		mount = verb;
@@ -43,6 +43,15 @@ module.exports = function setup(verb, mount, handler) {
 				return next();
 			}
 		};
+
+	//
+	// 1 parameter (must be array of routes) -> return array of handlers
+	//
+	} else if (Array.isArray(verb)) {
+
+		return verb.map(function(route) {
+			return setup.apply(null, route);
+		});
 
 	}
 

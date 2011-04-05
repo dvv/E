@@ -44,7 +44,7 @@ function get(url, headers, next) {
 	};
 	// proxy?
 	var proxy;
-	if (proxy = process.env["" + protocol.replace(/\:$/,'') + "_proxy"] || process.env.http_proxy) {
+	if (proxy = process.env['' + protocol.replace(/\:$/,'') + '_proxy'] || process.env.http_proxy) {
 		proxy = parseUrl(proxy);
 		protocol = proxy.protocol;
 		params.headers.host = params.host;
@@ -54,9 +54,9 @@ function get(url, headers, next) {
 	}
 	//console.log('REQ', params);
 	// issue the request
-	proto[protocol].module.get(params, function(req){
+	proto[protocol].module.get(params, function(req) {
 		// reuse body middleware to parse the response
-		bodyParser(req, null, function(err, result){
+		bodyParser(req, null, function(err, result) {
 			next(err, req.body);
 		});
 	});

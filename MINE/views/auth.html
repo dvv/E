@@ -1,11 +1,20 @@
-<a class="rpxnow" onclick="return false;" href="https://<%=janrain.domain%>.rpxnow.com/openid/v2/signin?lang=en&token_url=<%=tokenUrl%>"> Sign In </a>
-<a class="loginza" onclick="return false;" href="https://loginza.ru/api/widget?lang=en&token_url=<%=tokenUrl%>">Войти через OpenID</a>
-<script type="text/javascript">
-var rpxJsHost = (("https:" === document.location.protocol) ? 'https://' : 'http://static.');
-document.write(unescape('%3Cscript src="' + rpxJsHost + 'rpxnow.com/js/lib/rpx.js" type="text/javascript"%3E%3C/script%3E'));
-</script>
-<script type="text/javascript">
-RPXNOW.overlay = true;
-//RPXNOW.language_preference = 'en';
-</script>
-<script src="https://s3-eu-west-1.amazonaws.com/s1.loginza.ru/js/widget.js" type="text/javascript"></script>
+<form method="post">
+	<!-- native login -->
+	<div>
+		<input type="text" name="id" />
+		<input type="password" name="password" />
+		<input type="submit" value="Sign In" />
+	</div>
+	<!-- janrain.com -->
+	<%if (janrain) {%>
+	<div>
+		<iframe src="https://<%-janrain.domain%>.rpxnow.com/openid/embed?language_preference=en&token_url=<%-tokenUrl%>" style="width:400px;height:240px;" scrolling="no" frameborder="no"></iframe>
+	</div>
+	<%}%>
+	<!-- loginza.ru -->
+	<%if (loginza) {%>
+	<div>
+		<iframe src="https://loginza.ru/api/widget?overlay=loginza&lang=en&token_url=<%-tokenUrl%>" style="width:359px;height:300px;" scrolling="no" frameborder="no"></iframe>
+	</div>
+	<%}%>
+</form>

@@ -13,71 +13,123 @@ require('./lib/helpers');
 
 ////////////////////////////////////////////////////////////
 
+//
+// setup application
+//
 var config = require('./config');
-
-//
-// run cluster
-//
-var server = require('stereo')(null, config.server);
-
-//
-// worker process
-//
-if (server) {
+Next(null, function(err, result, next) {
 
 	//
-	// inter-workers message arrives
+	// get the data model
 	//
-	process.on('message', function(message){
-		console.log(JSON.stringify(message));
+	require('./model')(config, next);
+
+}, function(err, model, next) {
+
+	//console.log('S', arguments);
+
+	//
+	// setup middleware
+	//
+	var Middleware = require('./middleware');
+	deepCopy({
+		// signup function
+		signup: model.signup,
+		// get capability
+		getCapability: model.getCapability,
+		// native authentication
+		checkCredentials: model.checkCredentials
+	}, config.security);
+	function ordinary(req, res, next) {
+		var user = req.context.user;
+		user = {
+			id: user.id,
+			type: user.type,
+			email: user.email,
+			name: user.name,
+			roles: user.roles
+		};
+		res.render('index', {user: user});
+	}
+	var routes = [
+		['GET', '/', ordinary],
+		['GET', '/profile', ordinary],
+	];
+	config.routes = routes;
+	var middleware = Middleware.vanilla(__dirname, config);
+	next(null, middleware);
+
+}, function(err, middleware, next) {
+
+	/***
+	var http = require('http').createServer();
+	http.on('request', middleware);
+
+	var cluster = require('cluster');
+	cluster(http)
+		.set('workers', 2)
+		.use(cluster.debug())
+		.use(cluster.reload([__filename, 'lib', 'middleware']))
+		.use(cluster.stats())
+		.use(cluster.repl())
+		.listen(3000);
+	return;
+
+	var fugue = require('fugue');
+	fugue.start(http, 3000, null, 2, {
+		tmp_path: __dirname + '/tmp',
+		daemonize: false,
+		log_file: __dirname + '/tmp/children.txt',
+		master_log_file: __dirname + '/tmp/master.txt',
+		//uid: 'pedroteixeira',
+		//gid: 'staff',
+		//working_path: '/tmp',
+		verbose: true,
+		//master_pid_path: '/tmp/fugue_master.pid'
 	});
+	return;
+	***/
 
 	//
-	// setup application
+	// run both HTTP(S) servers with the same middleware
 	//
-	Next(null, function(err, result, next) {
+	var http = require('http').createServer();
+	http.on('request', middleware);
+	http.listen(3000);
+	var https = require('https').createServer({
+		key: require('fs').readFileSync('key.pem', 'utf8'),
+		cert: require('fs').readFileSync('cert.pem', 'utf8')
+	});
+	https.on('request', middleware);
+	https.listen(4000);
+	return;
 
-		//
-		// get the data model
-		//
-		require('./model')(config, next);
+	//
+	// run cluster
+	//
+	var server = require('stereo')(null, config.server);
 
-	}, function(err, model, next) {
+	//
+	// worker process
+	//
+	if (server) {
 
-		//console.log('S', arguments);
+		// inter-workers message arrives
+		process.on('message', function(message){
+			process.log(JSON.stringify(message));
+		});
 
-		//
-		// setup middleware
-		//
-		var Middleware = require('./middleware');
-		deepCopy({
-			// signup function
-			signup: model.signup,
-			// get capability
-			getCapability: model.getCapability,
-			// native authentication
-			checkCredentials: model.checkCredentials
-		}, config.security);
-		var routes = [
-			['GET', '/', function(req, res, next) {
-				res.render('index', req.context);
-			}]
-		];
-		config.routes = routes;
-		var middleware = Middleware.vanilla(__dirname, config);
+		// attach middleware
 		server.on('request', middleware);
-		// TODO: reuse for HTTPS
-
-	});
-
-//
-// master process
-//
-} else {
 
 	//
-	// broadcast a message
+	// master process
 	//
-	setTimeout(function(){process.publish({sos: 'to all, all, all'});}, 2000);
+	} else {
 
-}
+		// broadcast a message
+		setTimeout(function(){process.publish({sos: 'to all, all, all'});}, 2000);
+
+	}
+
+});

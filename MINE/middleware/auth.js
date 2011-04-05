@@ -32,7 +32,7 @@ module.exports.form = function setup(mount, options){
 		openid.push({
 			name: 'loginza',
 			referrer: /^http:\/\/loginza.ru\/api\/redirect\?/,
-			getUrl: function(token){
+			getUrl: function(token) {
 				return 'http://loginza.ru/api/authinfo?token=' + token;
 			}
 		});
@@ -42,7 +42,7 @@ module.exports.form = function setup(mount, options){
 		openid.push({
 			name: 'janrain',
 			referrer: new RegExp('^http:\/\/' + options.janrain.domain + '.rpxnow.com\/redirect\?'),
-			getUrl: function(token){
+			getUrl: function(token) {
 				return 'https://rpxnow.com/api/v2/auth_info?apiKey=' + options.janrain.apiKey + '&token=' + token;
 			}
 		});
@@ -76,12 +76,13 @@ module.exports.form = function setup(mount, options){
 		// GET -- render authentication page
 		//
 		if (req.method === 'GET') {
-			// FIXME: render means express
+			// FIXME: render means express?
 			res.render('auth', {
 				janrain: {
 					domain: options.janrain.domain
 				},
-				tokenUrl: escape(options.signinURL)
+				loginza: options.loginza,
+				tokenUrl: encodeURI(options.signinURL)
 			});
 			return;
 		}
@@ -92,11 +93,13 @@ module.exports.form = function setup(mount, options){
 		if (req.method !== 'POST') return next();
 		//console.log('POSTED to /auth', req.body, req.headers);
 
+		// FIXME: BROKEN...
+
 		// authentication helper
-		function authenticate(err, result) {
-			//console.log('WGOT', err, result && result.user);
-			// failed? -> remove req.session
-			if (!result) {
+		function authenticate(err, value) {
+			//console.log('WGOT', err, value);
+			// no such user or logout? -> remove req.session
+			if (!value) {
 				// FIXME: instead set a flash with error?
 				delete req.session;
 				// no such user? -> try to signup (if enabled)
@@ -104,7 +107,7 @@ module.exports.form = function setup(mount, options){
 					options.signup(req.body, function(err, user) {
 						//console.log('SIGNUP?', req.body, err && err.stack, user);
 						// FIXME: could result in endless recursion?
-						authenticate(err, {user: user});
+						authenticate(err, user && user.id);
 					});
 					return;
 				}
@@ -115,7 +118,7 @@ module.exports.form = function setup(mount, options){
 				//
 				// native form
 				//
-				if (result.user) {
+				if (value.user) {
 					req.session = {uid: result.user.id};
 				//
 				// loginza?
@@ -197,7 +200,7 @@ module.exports.form = function setup(mount, options){
 				//
 				if (data) {
 					// user exists?
-					options.validate(data.id, false, function(err, result) {
+					options.validate(data.id, false, function(err) {
 						// no such user? -> try to signup (if enabled)
 						if (err === 'usernotfound' && options.signup) {
 							data.password = nonce(); // N.B. setting password w/o email leads to bricked user
@@ -229,7 +232,7 @@ module.exports.form = function setup(mount, options){
 		var token = req.body.token;
 		// OpenID provider
 		if (token) {
-			var referrer = req.header('referrer') || req.header('referer') || '';
+			var referrer = req.header('referer') || req.header('referrer') || '';
 			// try first matching provider
 			for (var i = 0; i < openid.length; i++) {
 				var provider = openid[i];
@@ -278,7 +281,7 @@ module.exports.basic = function setup(validate) {
 			var uid = parts[0];
 			var password = parts[1];
 			// validate secret
-			validate(uid, password, function(err, user){
+			validate(uid, password, function(err){
 				if (err) return unauthorized(res);
 				// pass if auth is ok
 				next();
