@@ -52,6 +52,9 @@ var Middleware = function Stack(/*layers*/) {
 //
 extend(Middleware, {
 
+	// fill req.context with current user capability
+	caps: require('./caps'),
+
 	// parse the body into req.body
 	body: require('./body'),
 
@@ -97,26 +100,31 @@ Middleware.vanilla = function(root, options) {
 	var layers = [];
 	function use(layer) { layers.push.apply(layers, Array.isArray(layer) ? layer : [layer]); }
 
-	// parse the body to req.body, req.files; parse req.url to req.uri
-	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
-	use(Middleware.body());
+	// security
+	if (options.security && options.security.session) {
+		// manage cookie-based secure sessions
+		use(Middleware.session(options.security.session));
+		// fill req.context with current user capability
+		use(Middleware.caps(options.security.getCapability));
+	}
 
 	//use(Middleware.log());
+
+	// parse the body to req.body, req.files; parse req.url to req.uri
+	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
+	// TODO: if we have mutating sid cookie, couldn't it be csrf token?
+	use(Middleware.body());
 
 	//use(function(req, res, next) { res.send(req.body); });
 
 	// security
 	if (options.security) {
-		// manage cookie-based secure sessions
-		use(Middleware.session(options.security.session));
 		// handle authentication
 		use(Middleware.auth(options.security.mount, {
 			// auth URL
 			signinURL: options.security.signinURL,
 			// signup function
 			signup: options.security.signup,
-			// get capability
-			getCapability: options.security.getCapability,
 			// native authentication
 			validate: options.security.checkCredentials,
 			// loginza.ru authentication

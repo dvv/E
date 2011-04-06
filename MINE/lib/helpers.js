@@ -22,7 +22,10 @@ global.Next = function Next(context /*, steps*/) {
 				next(err);
 			}
 		} else {
-			if (err) throw err;
+			if (err) {
+				console.error(err.stack || err.message || err);
+				throw err;
+			}
 		}
 	};
 	next();
@@ -73,3 +76,43 @@ global.deepCopy = function deepCopy(source, target, overwrite){
 	}
 	return target;
 }
+
+//
+// thanks senchalabs/connect/utils
+//
+// before data is read from request, every async functions must be wrapped as follows:
+//
+// var standby = pause(req);
+// doAsync(..., function(err, result) {
+//   next();
+//   standby.resume();
+// });
+//
+global.pause = function(obj) {
+	var onData;
+	var onEnd;
+	var events = [];
+
+	// buffer data
+	obj.on('data', onData = function(data, encoding){
+		events.push(['data', data, encoding]);
+	});
+
+	// buffer end
+	obj.on('end', onEnd = function(data, encoding){
+		events.push(['end', data, encoding]);
+	});
+
+	return {
+		end: function(){
+			obj.removeListener('data', onData);
+			obj.removeListener('end', onEnd);
+		},
+		resume: function(){
+			this.end();
+			for (var i = 0, len = events.length; i < len; ++i) {
+				obj.emit.apply(obj, events[i]);
+			}
+		}
+	};
+};

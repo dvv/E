@@ -54,19 +54,6 @@ module.exports.form = function setup(mount, options){
 	return function handler(req, res, next) {
 
 		//
-		// get current user capabilities
-		//
-		if (options.getCapability && !req.context) {
-			// N.B. map all falsy user ids to uid=''
-			options.getCapability(req.session && req.session.uid || '', function(err, context) {
-				req.context = context;
-				// rerun the handler with `req.context` set
-				handler(req, res, next);
-			});
-			return;
-		}
-
-		//
 		// check we are in business
 		//
 		if (req.uri.pathname !== mount) return next();
@@ -96,7 +83,7 @@ module.exports.form = function setup(mount, options){
 		// FIXME: BROKEN...
 
 		// authentication helper
-		function authenticate(err, uid) {
+		function finalize(err, uid) {
 			console.log('AUTHENTICATE', err && err.stack || err, uid);
 			// no such user or logout? -> remove req.session
 			if (err || !uid) {
@@ -113,23 +100,22 @@ module.exports.form = function setup(mount, options){
 		}
 
 		// another authentication helper
-		function validateOrSignup(data) {
+		function validateOrSignup(data, maySignUp) {
 			console.log('VALIDATE', data);
-			// if password is given, use it
-			// else check if user exists
-			options.validate(data.id, data.password || false, function(err) {
+			// authnticate
+			options.validate(data.id, data.password, function(err, uid) {
 				console.log('VALIDATED?', err);
 				// no such user? -> try to signup (if enabled)
-				if (err === 'usernotfound' && options.signup) {
+				if (err === 'usernotfound' && options.signup && maySignUp) {
 					options.signup(data, function(err, user) {
-						authenticate(err, data.id);
+						finalize(err, data.id);
 					});
-				// user exists and is validated by provider
-				} else if (!err || (err === 'userinvalid' && !data.password)) {
-					authenticate(null, data.id);
+				// user exists and authenticated either natively or by a provider
+				} else if (uid || (err === 'userinvalid' && !data.password)) {
+					finalize(null, data.id);
 				// other error -> logout
 				} else {
-					authenticate();
+					finalize();
 				}
 			});
 		}
@@ -146,7 +132,7 @@ module.exports.form = function setup(mount, options){
 					wget.get(provider.getUrl(token), function(err, result) {
 						console.log('WGOT', arguments);
 						// error? -> logout
-						if (err) return authenticate();
+						if (err) return finalize();
 						// got user profile
 						// signup unless user exists, and copy info from profile
 						//
@@ -160,7 +146,7 @@ module.exports.form = function setup(mount, options){
 							if (profile.provider === 'http://twitter.com/') {
 								data = {
 									id: uid,
-									name: profile.name && profile.name.full_name || undefined,
+									name: profile.name && profile.name.full_name || profile.email,
 									email: profile.email,
 									photo: profile.photo
 								};
@@ -168,7 +154,7 @@ module.exports.form = function setup(mount, options){
 							} else if (profile.provider === 'https://www.google.com/accounts/o8/ud') {
 								data = {
 									id: uid,
-									name: profile.name && profile.name.full_name || undefined,
+									name: profile.name && profile.name.full_name || profile.email,
 									email: profile.email,
 									photo: profile.photo
 								};
@@ -176,7 +162,7 @@ module.exports.form = function setup(mount, options){
 							} else if (profile.provider === 'http://vkontakte.ru/') {
 								data = {
 									id: uid,
-									name: profile.name && (profile.name.first_name + ' ' + profile.name.last_name) || undefined,
+									name: profile.name && (profile.name.first_name + ' ' + profile.name.last_name) || profile.email,
 									email: profile.email,
 									photo: profile.photo
 								};
@@ -202,7 +188,7 @@ module.exports.form = function setup(mount, options){
 							if (profile.providerName === 'Twitter') {
 								data = {
 									id: uid,
-									name: profile.displayName || undefined,
+									name: profile.displayName || profile.email,
 									email: profile.email,
 									photo: profile.photo
 								};
@@ -210,16 +196,16 @@ module.exports.form = function setup(mount, options){
 							} if (profile.providerName === 'Facebook') {
 								data = {
 									id: uid,
-									name: profile.displayName || undefined,
-									email: profile.verifiedEmail || profile.email,
+									name: profile.displayName || profile.email,
+									email: profile.email,
 									photo: profile.photo
 								};
 							// google
 							} if (profile.providerName === 'Google') {
 								data = {
 									id: uid,
-									name: profile.name.formatted || undefined,
-									email: profile.verifiedEmail || profile.email,
+									name: profile.name.formatted || profile.email,
+									email: profile.email,
 									photo: profile.photo
 								};
 							// TODO: other providers
@@ -234,30 +220,30 @@ module.exports.form = function setup(mount, options){
 						// try to find local user authenticated by an OpenID provider
 						//
 						if (data) {
-							validateOrSignup(data);
+							validateOrSignup(data, true);
 						// not authenticated by brokers -> logout
 						} else {
-							authenticate();
+							finalize();
 						}
 					});
 					return;
 				}
 			}
 			// unknown or forged provider --> force logout
-			authenticate();
+			finalize();
 		// native form login
 		} else if (options.validate) {
 			var data = req.body;
 			// check if password is confirmed at signup
 			console.log('NATIVE', data);
 			if (data.signup && data.password && data.password2 === data.password) {
-				validateOrSignup(data);
+				validateOrSignup(data, true);
 			// check if password is given at sigin
 			} else if (data.signin && data.password) {
-				validateOrSignup(data);
+				validateOrSignup(data, false);
 			// else logout
 			} else {
-				authenticate();
+				finalize();
 			}
 		// no authentication provider
 		} else {

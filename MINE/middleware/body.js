@@ -144,7 +144,6 @@ module.exports = function setup(options) {
 					if (!body) return next();
 					parsers[type](body, function(err, data) {
 						if (err) return next(err);
-						//console.log('BODY', data);
 						req.body = data;
 						next();
 					});
@@ -165,12 +164,27 @@ module.exports = function setup(options) {
 				form.uploadDir = uploadDir;
 				if (false) {
 					form.onPart = function(part) {
+						//console.log('PART', part);
 						if (!part.filename) {
 							// let formidable handle all non-file parts
 							form.handlePart(part);
 						}
 					}
 				}
+
+				var fields = '';
+				var files = {};
+				// N.B. intrinsic fields decoder is almost noop
+				// so collect all non-file fields and parse them with Qs
+				form.on('field', function(name, value) {
+					//console.log('FIELD', name, value);
+					fields += '&' + name + '=' + value;
+				});
+				form.on('file', function(name, file) {
+					//console.log('FILE', arguments);
+					fields += '&' + name + '=' + encodeURIComponent(file.path);
+					files[file.path] = file;
+				});
 
 				// handle file upload progress
 				if (options.onUploadProgress) {
@@ -187,10 +201,13 @@ module.exports = function setup(options) {
 				}
 
 				// parse the body
-				form.parse(req, function(err, fields, files) {
+				form.parse(req, function(err) {
 					if (err) return next(err);
-					req.body = fields;
+					// parse collected fields as querystring
+					req.body = Qs.parse(fields.substring(1));
+					// uploaded files hash
 					req.files = files;
+					//console.log('FORM', req.body, req.files);
 					//return res.send(arguments);
 					next();
 				});

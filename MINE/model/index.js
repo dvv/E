@@ -392,8 +392,7 @@ Next({}, function(err, result, next) {
 					callback('userblocked');
 				} else if (user.password !== encryptPassword(password, user.salt)) {
 					//console.log('CREDS???', user.password, user.salt, encryptPassword(password, user.salt));
-					// N.B. if password is false return the user existence status
-					callback('userinvalid', password === false ? true : undefined);
+					callback('userinvalid');
 				} else {
 					//console.log('CREDS!!!', uid);
 					callback(null, uid);

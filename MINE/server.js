@@ -26,7 +26,7 @@ Next(null, function(err, result, next) {
 
 }, function(err, model, next) {
 
-	//console.log('S', arguments);
+	//console.log('S1', arguments);
 
 	//
 	// setup middleware
@@ -49,10 +49,10 @@ Next(null, function(err, result, next) {
 			name: user.name,
 			roles: user.roles
 		};
-		res.render('index', {user: user});
+		res.render('index', {user: user, files: req.files});
 	}
 	var routes = [
-		['GET', '/', ordinary],
+		['/', {get: ordinary, post: ordinary}],
 		['GET', '/profile', ordinary],
 	];
 	config.routes = routes;
@@ -60,6 +60,8 @@ Next(null, function(err, result, next) {
 	next(null, middleware);
 
 }, function(err, middleware, next) {
+
+	if (err) console.log('S2', arguments);
 
 	/***
 	var http = require('http').createServer();

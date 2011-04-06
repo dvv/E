@@ -11,9 +11,21 @@
 
 <div id="menu"></div>
 
+
+
 <b>Multiple File Upload:</b><br/><br/>
 <form action1="/upload" enctype="multipart/form-data" method="post">
 	<input type="text" name="title"><br>
-	<input type="file" name="upload" multiple="multiple"><br>
+	<input type="file" name="upload[]" multiple="multiple"><br>
+	<input type="text" name="data[title]"><br>
+	<input type="text" name="data[name]"><br>
+	<input type="file" name="data[files][]" multiple="multiple"><br>
 	<input type="submit" value="Upload">
 </form>
+
+<b>Files Uploaded</b><br/><br/>
+<% _.each(files, function(file, path) { %>
+	Path: <%=path%><br/>
+	<a href="<%=path%>"><img src="<%=path%>" /></a><br/>
+	Path: <%=file.size%><br/>
+<% }); %>
