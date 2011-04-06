@@ -35,6 +35,10 @@ module.exports = {
 		userTypes: {
 			admin: 'Admin',
 			affiliate: 'Affiliate'
+		},
+		recaptcha: {
+			pubkey: '6LcYML4SAAAAAMrP_hiwsXJo3FtI21gKiZ1Jun7U',
+			privkey: '6LcYML4SAAAAAPby-ghBSDpi97JP1LYI71O-J6kx'
 		}
 	},
 	database: {

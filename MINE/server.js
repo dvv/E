@@ -49,7 +49,25 @@ Next(null, function(err, result, next) {
 			name: user.name,
 			roles: user.roles
 		};
-		res.render('index', {user: user, files: req.files});
+
+		if (req.method === 'POST') {
+			console.log('POSTED');
+			var Qs = require('querystring');
+			var qry = Qs.stringify({
+				privatekey: config.security.recaptcha.privkey,
+				remoteip: req.socket.remoteAddress,
+				challenge: req.body.recaptcha_challenge_field,
+				response: req.body.recaptcha_response_field
+			});
+			var url = 'http://www.google.com/recaptcha/api/verify';
+			var Wget = require('./lib/wget');
+			Wget.post(url, qry, {}, function(err, result) {
+				console.log('CAPTCHED', arguments);
+			});
+			res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
+		} else {
+			res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
+		}
 	}
 	var routes = [
 		['/', {get: ordinary, post: ordinary}],
