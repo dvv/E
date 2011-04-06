@@ -10,7 +10,7 @@
 //
 // fill req.context with capability of the current user
 //
-module.exports = function setup(getCapability){
+module.exports = function setup(getCapability) {
 
 	// setup
 

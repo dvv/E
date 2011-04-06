@@ -81,6 +81,9 @@ extend(Middleware, {
 	// log the request and corresponding response
 	log: require('./log'),
 
+	// checks captcha validity in POST requests
+	captcha: require('./captcha'),
+
 });
 
 //
@@ -114,6 +117,8 @@ Middleware.vanilla = function(root, options) {
 	// TODO: csrf https://github.com/hanssonlarsson/express-csrf
 	// TODO: if we have mutating sid cookie, couldn't it be csrf token?
 	use(Middleware.body());
+
+	use(Middleware.captcha(options.security.recaptcha));
 
 	//use(function(req, res, next) { res.send(req.body); });
 

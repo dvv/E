@@ -21,7 +21,7 @@ var proto = {
 	}
 };
 
-function get(url, headers, next) {
+function request(method, url, data, headers, next) {
 	// defaults
 	if (!next) {
 		next = headers;
@@ -30,13 +30,15 @@ function get(url, headers, next) {
 	if (!headers) {
 		headers = {
 			accept: '*/*',
-			'user-agent': 'wget 1.14'
+			'user-agent': 'wget 1.14',
+			'content-type': 'application/x-www-form-urlencoded'
 		}
 	}
 	// compose request params
 	var params = parseUrl(url);
 	var protocol = params.protocol;
 	params = {
+		//host: headers.host = params.hostname,
 		host: params.hostname,
 		port: params.port || proto[protocol].port || 3128,
 		path: params.pathname + (params.search ? params.search : ''),
@@ -52,63 +54,44 @@ function get(url, headers, next) {
 		params.host = proxy.hostname;
 		params.path = url;
 	}
-	params.method = 'GET';
+	// set the verb
+	params.method = method;
+	// stringify data
+	if (data) {
+		// FIXME: way greedy JSON
+		if (typeof data === 'object') {
+			data = JSON.stringify(data);
+			headers['content-type'] = 'application/json';
+		} else {
+			data = String(data);
+		}
+		// set content-length
+		headers['content-length'] = data.length;
+	}
 	//console.log('REQ', params);
 	// issue the request
-	var request = proto[protocol].module.request(params, function(req) {
+	var request = proto[protocol].module.request(params, function(res) {
+		console.log('WGETRESPONSEHEADERS', res.headers);
 		// reuse body middleware to parse the response
-		bodyParser(req, null, function(err, result) {
-			next(err, req.body);
+		bodyParser(res, null, function(err, result) {
+			next(err, res.body);
 		});
 	});
-	request.end();
-}
-
-function post(url, data, headers, next) {
-	// defaults
-	if (!next) {
-		next = headers;
-		headers = null;
+	// catch errors
+	request.on('error', next);
+	// send the data, if any
+	if (data) {
+		request.write(data, 'utf8');
 	}
-	if (!headers) {
-		headers = {
-			accept: '*/*',
-			'user-agent': 'wget 1.14'
-		}
-	}
-	// compose request params
-	var params = parseUrl(url);
-	var protocol = params.protocol;
-	params = {
-		host: params.hostname,
-		port: params.port || proto[protocol].port || 3128,
-		path: params.pathname + (params.search ? params.search : ''),
-		headers: headers
-	};
-	// proxy?
-	var proxy;
-	if (proxy = process.env['' + protocol.replace(/\:$/,'') + '_proxy'] || process.env.http_proxy) {
-		proxy = parseUrl(proxy);
-		protocol = proxy.protocol;
-		params.headers.host = params.host;
-		params.port = proxy.port || 80;
-		params.host = proxy.hostname;
-		params.path = url;
-	}
-	params.method = 'POST';
-	console.log('REQ', params);
-	// issue the request
-	var request = proto[protocol].module.request(params, function(req) {
-		// reuse body middleware to parse the response
-		bodyParser(req, null, function(err, result) {
-			next(err, req.body);
-		});
-	});
-	request.write(data, 'utf8');
 	request.end();
 }
 
 module.exports = {
-	get: get,
-	post: post
+	request: request,
+	get: function(url, headers, next) {
+		return request('GET', url, null, headers, next);
+	},
+	post: function(url, data, headers, next) {
+		return request('POST', url, data, headers, next);
+	}
 };

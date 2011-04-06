@@ -51,19 +51,6 @@ Next(null, function(err, result, next) {
 		};
 
 		if (req.method === 'POST') {
-			console.log('POSTED');
-			var Qs = require('querystring');
-			var qry = Qs.stringify({
-				privatekey: config.security.recaptcha.privkey,
-				remoteip: req.socket.remoteAddress,
-				challenge: req.body.recaptcha_challenge_field,
-				response: req.body.recaptcha_response_field
-			});
-			var url = 'http://www.google.com/recaptcha/api/verify';
-			var Wget = require('./lib/wget');
-			Wget.post(url, qry, {}, function(err, result) {
-				console.log('CAPTCHED', arguments);
-			});
 			res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
 		} else {
 			res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
@@ -72,6 +59,10 @@ Next(null, function(err, result, next) {
 	var routes = [
 		['/', {get: ordinary, post: ordinary}],
 		['GET', '/profile', ordinary],
+		['POST', '/captcha', function(req, res, next) {
+			console.log('CAPTURED', req.headers, req.body);
+			res.send('false\nfock!');
+		}]
 	];
 	config.routes = routes;
 	var middleware = Middleware.vanilla(__dirname, config);
@@ -116,12 +107,12 @@ Next(null, function(err, result, next) {
 	var http = require('http').createServer();
 	http.on('request', middleware);
 	http.listen(3000);
-	//var https = require('https').createServer({
-	//	key: require('fs').readFileSync('key.pem', 'utf8'),
-	//	cert: require('fs').readFileSync('cert.pem', 'utf8')
-	//});
-	//https.on('request', middleware);
-	//https.listen(4000);
+	var https = require('https').createServer({
+		key: require('fs').readFileSync('key.pem', 'utf8'),
+		cert: require('fs').readFileSync('cert.pem', 'utf8')
+	});
+	https.on('request', middleware);
+	https.listen(4000);
 	return;
 
 	//

@@ -61,7 +61,7 @@ module.exports = function setup(options) {
 		// XML: starts with <
 		// urlemcoded: else
 		var c = s.charAt(0);
-		(c === '{' || c === '[') ? parseJSON(s, next) : (c === '<') ? parseHTML(s, next) : parseQS(s, next);
+		(c === '{' || c === '[') ? parseJSON(s, next) : (c === '<') ? parseHTML(s, next) : (~s.indexOf('=')) ? parseQS(s, next) : next(null, s);
 	}
 
 	// parsers for well-known mime
@@ -72,7 +72,8 @@ module.exports = function setup(options) {
 		'application/x-www-form-urlencoded': parseQS,
 		'application/xml': guess,
 		// FIXME: streaming version?
-		'text/html': guess
+		'text/html': guess,
+		'text/plain': guess
 	};
 
 	// handler
@@ -141,6 +142,7 @@ module.exports = function setup(options) {
 
 				// body collected -> parse it at once
 				req.on('end', function() {
+					//console.log('BODY', body);
 					if (!body) return next();
 					parsers[type](body, function(err, data) {
 						if (err) return next(err);
