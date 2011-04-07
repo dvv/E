@@ -19,7 +19,7 @@ function sha1(data, key) {
 //
 // if options.signup = function(data, callback) is given, self-registration is allowed
 //
-module.exports.form = function setup(mount, options){
+module.exports.form = function setup(mount, options) {
 
 	// setup
 	if (!options) options = {};

@@ -51,10 +51,8 @@ Next({}, function(err, result, next) {
 		};
 
 		if (req.method === 'POST') {
-			//res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
 			res.render('index', {user: user, fields: req.body, files: req.files, captcha: res.captcha()});
 		} else {
-			//res.render('index', {user: user, fields: req.body, files: req.files, form: {recaptchaKey: config.security.recaptcha.pubkey}});
 			res.render('index', {user: user, fields: req.body, files: req.files, captcha: res.captcha()});
 		}
 	}
@@ -90,20 +88,6 @@ Next({}, function(err, result, next) {
 		.use(cluster.repl())
 		.listen(3000);
 	return;
-
-	var fugue = require('fugue');
-	fugue.start(http, 3000, null, 2, {
-		tmp_path: __dirname + '/tmp',
-		daemonize: false,
-		log_file: __dirname + '/tmp/children.txt',
-		master_log_file: __dirname + '/tmp/master.txt',
-		//uid: 'pedroteixeira',
-		//gid: 'staff',
-		//working_path: '/tmp',
-		verbose: true,
-		//master_pid_path: '/tmp/fugue_master.pid'
-	});
-	return;
 	***/
 
 	//
@@ -119,13 +103,14 @@ Next({}, function(err, result, next) {
 	var everyone = require('now').initialize(http);
 	everyone.connected(function() {
 		// TODO: lookup sid cookie, auto-call setContext if found
-		console.log("Joined: " + this.now.name);
+		//console.log("Joined: " + this.now.name);
 	});
 	everyone.disconnected(function() {
-		console.log("Left: " + this.now.name);
+		//console.log("Left: " + this.now.name);
 	});
 
 	var self = this;
+	/***
 	// TODO: may be auth page as usual sets sid, and then `connected` may autologin and autoset context?
 	everyone.now.setContext = function(uid, password, callback) {
 		var client = this.now;
@@ -153,11 +138,50 @@ Next({}, function(err, result, next) {
 			// invalid user, or just signed out 
 			} else {
 				// revoke capabilities from the client
-				client.user = false;
-				client.context = false;
-				callback({error: err || null, result: err ? undefined : result});
+				client.user = {};
+				client.context = {};
+				callback({error: err || null, result: err ? undefined : true});
 			}
 		});
+	};
+	***/
+
+	var Cookie = require('cookie-sessions');
+	everyone.now.getContext = function(sid, callback) {
+		// parse auth cookie to get the current user
+		// TODO: better to get them from the request, if any exposed
+		var options = config.security.session;
+		var session;
+		try {
+			session = Cookie.deserialize(options.secret, options.timeout, sid);
+		} catch (err) {}
+		// push capabilities to the client
+		var client = this.now;
+		if (session && session.uid) {
+			self.getCapability(session.uid, function(err, result) {
+				//console.log('CTX', arguments);
+				// bind caps to the user
+				_.each(result, function(obj, name) {
+					_.each(_.functions(obj), function(f) { obj[f] = _.bind(obj[f], obj, result); });
+					result[name] = obj;
+				});
+				// push to the client the sanitized user profile
+				client.user = {
+					id: result.user.id,
+					email: result.user.email,
+					roles: result.user.roles
+				};
+				// push to the client the user context
+				client.context = result;
+				callback({error: err || null, result: err ? undefined : true});
+			});
+		// invalid user, or just signed out 
+		} else {
+			// revoke capabilities from the client
+			client.user = {};
+			client.context = {};
+			callback({error: null, result: true});
+		}
 	};
 
 	everyone.now.distributeMessage = function(message) {

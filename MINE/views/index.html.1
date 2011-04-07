@@ -1,0 +1,85 @@
+<header id="header">
+	<form action="/auth" method="post"><input type="submit" value="Sign Out" /></form>
+
+</header>
+<div id="content">
+
+<script src="nowjs/now.js"></script>
+<script>
+var model;
+
+$(document).ready(function() {'use strict';
+model = ko.mapping.fromJS({
+	user: {id: 'Guest'}, //<%-JSON.stringify(user)%>,
+	context: {},
+	foo: 'foo'
+});
+ko.applyBindings(model);
+console.log('DOCREADY', model);
+
+$("#send-button").click(function() {
+	ko.mapping.updateFromJS(model, {user: {id: $('#text-input').val()}});
+});
+
+});
+now.ready(function() {'use strict';
+	//
+	// initial model values
+	//
+	//now.user = {};
+	//now.context = {};
+	now.signout = function() {
+		now.getContext(null, function(context) {
+			ko.mapping.updateFromJS(model, {user: now.user, context: now.context});
+			console.log('NOWREADY', model);
+		});
+	};
+	//
+	// stuff
+	//
+	now.receiveMessage = function(name, message){
+		$("#messages").append("<br>" + name + ": " + message);
+	}
+	//
+	// make `now` the model!
+	// FIXME: doesn't get observable :(
+	//
+	//
+	// ugly hack -- we fetch the sid cookie and pass it as parameter to `getContext` to get the user context
+	// FIXME: beautify
+	//
+	var match;
+	var str;
+	(match = document.cookie.match(new RegExp('(?:^|;) *' + 'sid'.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') + '=([^;]*)'))) && (str = match[1] || '');
+	now.getContext(str, function() {
+		ko.mapping.updateFromJS(model, {user: now.user, context: now.context});
+		console.log('NOWREADY', model);
+	});
+});
+</script>
+
+<div id="messages"></div>
+<input type="text" id="text-input" />
+<input type="button" value="Send" id="send-button" />
+
+<script id="menuForRole" type="text/html">
+	{{each roles}}
+	You can ${ $value }
+	{{/each}}
+</script>
+
+<div id="dashboard" data-bind="visible: user.id">
+Hello, <span data-bind="text: user.id"></span>!
+Hi, <span data-bind="text: (user.name || user.email || user.id || 'Guest')"></span>!
+<div data-bind="template: {name: 'menuForRole', data: user}"></div>
+</div>
+
+
+
+
+
+
+</div>
+<footer id="footer">
+
+</footer>

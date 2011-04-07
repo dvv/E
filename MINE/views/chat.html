@@ -1,49 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
-<head> 
-<title>nowjs test</title> 
 <script src="nowjs/now.js"></script>
 
 <script>
 $(document).ready(function(){
   //now.name = prompt("What's your name?", "");  
-  now.receiveMessage = function(name, message){
-    $("#messages").append("<br>" + name + ": " + message);
-  }
   
-  /*$("#send-button").click(function(){
-    now.distributeMessage($("#text-input").val());
-    $("#text-input").val("");
-  });*/
-
-	$("#send-button").click(function(){
-		now.setContext('root', '123', function(context) {
-			//window.ctx = context;
-			console.log('GCTX:', arguments);
-		});
+	$("#send-button").click(function() {
+		//now.distributeMessage($("#text-input").val());
+		//$("#text-input").val('');
+		now.user.id = $("#text-input").val();
 	});
-
-window.signin = function signin() {
-	try {
-	now.setContext($('input[name=id]', this).val(), $('input[name=password]', this).val(), function(context) {
-		console.log('SIGNIN:', arguments);
-	});
-	} catch (err) {console.error(err)}
-	return false;
-}
 
 });
+now.ready(function() {
+	//
+	// initial model values
+	//
+	now.user = {};
+	now.context = {};
+	//
+	// signin/signout
+	//
+	now.signin = function(form) {
+		now.setContext($('input[name=id]',form).val(), $('input[name=password]',form).val(), function(context) {
+			form.reset();
+			ko.applyBindings(now);
+		});
+	};
+	now.signout = function() {
+		now.setContext(null, null, function(context) {
+			ko.applyBindings(now);
+		});
+	};
+	//
+	// stuff
+	//
+	now.receiveMessage = function(name, message){
+		$("#messages").append("<br>" + name + ": " + message);
+	}
+	//
+	// make `now` the model!
+	// FIXME: doesn't get observable :(
+	//
+	ko.applyBindings(now);
+});
 </script>
-</head> 
 
-<body> 
 <div id="messages"></div>
 <input type="text" id="text-input" />
 <input type="button" value="Send" id="send-button" />
 
+<div id="signin" data-bind="visible: !user.id">
 <h1>Please, authenticate</h1>
+<!-- TODO: link to signup -->
 <!-- native signin -->
-<form method="post" onsubmit="now.setContext($('input[name=id]',this).val(),$('input[name=password]',this).val(),function(context){console.log('SIGNIN:', arguments);});return false;">
+<form data-bind="submit: signin">
 	<div>
 		<p>ID</p>
 		<p><input type="text" name="id" /></p>
@@ -52,6 +62,26 @@ window.signin = function signin() {
 		<p><input type="submit" name="signin" value="Sign In" /></p>
 	</div>
 </form>
+<!-- TODO: loginza.ru, janrain.com -->
+</div>
 
-</body> 
-</html> 
+<div id="signout" data-bind="visible: user.id">
+<a href="#" data-bind="click: signout">Sign Out</a>
+</div>
+
+<script id="menuForRole" type="text/html">
+	{{each roles}}
+	You can ${ $value }
+	{{/each}}
+</script>
+
+<div id="dashboard" data-bind="visible: user.id">
+Hello, <span data-bind="text: user.id"></span>!
+Hi, <span data-bind="text: (user.name || user.email || user.id || 'Guest')"></span>!
+<div data-bind="template: {name: 'menuForRole', data: user}"></div>
+</div>
+
+<script>
+;(function(){'use strict';
+})();
+</script>
