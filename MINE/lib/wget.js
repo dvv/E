@@ -68,22 +68,27 @@ function request(method, url, data, headers, next) {
 		// set content-length
 		headers['content-length'] = data.length;
 	}
-	//console.log('REQ', params);
+	console.log('REQ', params);
 	// issue the request
-	var request = proto[protocol].module.request(params, function(res) {
+	var req = proto[protocol].module.request(params, function(res) {
 		console.log('WGETRESPONSEHEADERS', res.headers);
+		/*if (res.headers.refresh) {
+			request(method, url, data, headers, next);
+			return;
+		}*/
 		// reuse body middleware to parse the response
 		bodyParser(res, null, function(err, result) {
+			console.log('WGETBODY', res.body);
 			next(err, res.body);
 		});
 	});
 	// catch errors
-	request.on('error', next);
+	req.on('error', next);
 	// send the data, if any
 	if (data) {
-		request.write(data, 'utf8');
+		req.write(data, 'utf8');
 	}
-	request.end();
+	req.end();
 }
 
 module.exports = {

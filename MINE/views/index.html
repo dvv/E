@@ -20,20 +20,8 @@
 	<input type="text" name="data[title]"><br>
 	<input type="text" name="data[name]"><br>
 	<input type="file" name="data[files][]" multiple="multiple"><br>
+	<%-captcha%>
 	<input type="submit" value="Upload">
-
-<script type="text/javascript">
-	var RecaptchaOptions = {
-		theme: 'clean',
-		lang: 'fr'
-	};
-</script>
-<script type="text/javascript" src="http://www.google.com/recaptcha/api/challenge?k=<%=form.recaptchaKey%>"></script>
-<noscript>
-	<iframe src="http://www.google.com/recaptcha/api/noscript?k=<%=form.recaptchaKey%>" height="300" width="500" frameborder="0"></iframe><br>
-	<textarea name="recaptcha_challenge_field" rows="3" cols="40"></textarea>
-	<input type="hidden" name="recaptcha_response_field" value="manual_challenge" />
-</noscript>
 
 </form>
 
@@ -46,3 +34,18 @@
 	<a href="<%=path%>"><img src="<%=path%>" /></a><br/>
 	Path: <%=file.size%><br/>
 <% }); %>
+
+The name is <span data-bind="text: (user.name || user.email || user.id)"></span>
+
+<script>
+;(function(){'use strict';
+
+var myViewModel = {
+	user: <%-JSON.stringify(user)%>,
+	foo: 'foo'
+};
+
+ko.applyBindings(myViewModel);
+
+})();
+</script>

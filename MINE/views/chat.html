@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+<title>nowjs test</title> 
+<script src="nowjs/now.js"></script>
+
+<script>
+$(document).ready(function(){
+  //now.name = prompt("What's your name?", "");  
+  now.receiveMessage = function(name, message){
+    $("#messages").append("<br>" + name + ": " + message);
+  }
+  
+  /*$("#send-button").click(function(){
+    now.distributeMessage($("#text-input").val());
+    $("#text-input").val("");
+  });*/
+
+	$("#send-button").click(function(){
+		now.setContext('root', '123', function(context) {
+			//window.ctx = context;
+			console.log('GCTX:', arguments);
+		});
+	});
+
+window.signin = function signin() {
+	try {
+	now.setContext($('input[name=id]', this).val(), $('input[name=password]', this).val(), function(context) {
+		console.log('SIGNIN:', arguments);
+	});
+	} catch (err) {console.error(err)}
+	return false;
+}
+
+});
+</script>
+</head> 
+
+<body> 
+<div id="messages"></div>
+<input type="text" id="text-input" />
+<input type="button" value="Send" id="send-button" />
+
+<h1>Please, authenticate</h1>
+<!-- native signin -->
+<form method="post" onsubmit="now.setContext($('input[name=id]',this).val(),$('input[name=password]',this).val(),function(context){console.log('SIGNIN:', arguments);});return false;">
+	<div>
+		<p>ID</p>
+		<p><input type="text" name="id" /></p>
+		<p>Password</p>
+		<p><input type="password" name="password" /></p>
+		<p><input type="submit" name="signin" value="Sign In" /></p>
+	</div>
+</form>
+
+</body> 
+</html> 

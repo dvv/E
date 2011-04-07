@@ -10,9 +10,9 @@ module.exports = {
 		},*/
 		shutdownTimeout: 10000,
 		repl: true,
-		pub: {
-			dir: '../public',
-			ttl: 3600
+		'static': {
+			dir: 'public',
+			//cache: 32768 // set to limit the size of cacheable file
 		},
 		watch: ['*.js', 'public', 'views', 'lib'],
 		stackTrace: true

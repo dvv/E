@@ -96,12 +96,15 @@ Middleware.vanilla = function(root, options) {
 	// setup views renderer
 	require('./render')({
 		path: root + '/views',
-		ext: '.html'
+		ext: '.html',
+		cache: false // true to cache rendered templates
 	});
 
 	// collect stack
 	var layers = [];
-	function use(layer) { layers.push.apply(layers, Array.isArray(layer) ? layer : [layer]); }
+	function use(layer) {
+		layers.push.apply(layers, Array.isArray(layer) ? layer : [layer]);
+	}
 
 	// security
 	if (options.security && options.security.session) {
@@ -118,26 +121,11 @@ Middleware.vanilla = function(root, options) {
 	// TODO: if we have mutating sid cookie, couldn't it be csrf token?
 	use(Middleware.body());
 
+	// FIXME: captcha uses parsed req.body, but to prohibit, say, robotic
+	// uploads captcha should go prior to body parser...
 	use(Middleware.captcha(options.security.recaptcha));
 
 	//use(function(req, res, next) { res.send(req.body); });
-
-	// security
-	if (options.security) {
-		// handle authentication
-		use(Middleware.auth(options.security.mount, {
-			// auth URL
-			signinURL: options.security.signinURL,
-			// signup function
-			signup: options.security.signup,
-			// native authentication
-			validate: options.security.checkCredentials,
-			// loginza.ru authentication
-			loginza: options.security.loginza,
-			// janrain.com authentication
-			janrain: options.security.janrain
-		}));
-	}
 
 	// handle manually defined routes
 	if (options.routes) {
@@ -151,9 +139,27 @@ Middleware.vanilla = function(root, options) {
 	}));
 
 	// serve static stuff under ./public
-	use(Middleware.static('/', root + '/public', null, {
-		cacheThreshold: 32768, // set to limit the size of cacheable file
-	}));
+	if (options.server.static) {
+		use(Middleware.static('/', root + '/' + (options.server.static.dir || 'public'), null, {
+			cacheThreshold: options.server.static.cache
+		}));
+	}
+
+	// handle authentication
+	if (options.security) {
+		use(Middleware.auth(options.security.mount, {
+			// auth URL
+			signinURL: options.security.signinURL,
+			// signup function
+			signup: options.security.signup,
+			// native authentication
+			validate: options.security.checkCredentials,
+			// loginza.ru authentication
+			loginza: options.security.loginza,
+			// janrain.com authentication
+			janrain: options.security.janrain
+		}));
+	}
 
 	//
 	return Middleware.apply(Middleware, layers);

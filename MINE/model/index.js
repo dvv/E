@@ -362,6 +362,7 @@ Next({}, function(err, result, next) {
 			if (config.security.bypass) user.roles = fullRole;
 			var caps = _.extend.apply(null, [{}].concat(_.map(user.roles, function(x){return roles[x] || {};})));
 			// set context user
+			//Object.defineProperty(caps, 'user', {value: user, enumerable: true});
 			Object.defineProperty(caps, 'user', {value: user});
 			//
 			//console.log('CAPS', user, caps);

@@ -50,7 +50,7 @@ module.exports = function setup(mount, root, index, options) {
 		// get and cache file stats
 		} else {
 			Fs.stat(path, function(err, stat) {
-				//process.log('STAT!', path, err, stat);
+				//console.log('STAT!', path, err, stat);
 				if (options.cacheThreshold != null && !err) statCache[path] = stat;
 				onStat(err, stat);
 			});
