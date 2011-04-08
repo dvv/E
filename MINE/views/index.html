@@ -21,14 +21,26 @@
 	{{/each}}
 </script>
 
+<script id="profile" type="text/html">
+	email: ${ email }
+	roles: ${ roles }
+</script>
+
 <div id="dashboard" data-bind="visible: user.id">
 Hello, <span data-bind="text: user.id"></span>!
 Hi, <span data-bind="text: (user.name || user.email || user.id || 'Guest')"></span>!
 <div data-bind="template: {name: 'menuForRole', data: user}"></div>
+Profile
+<div data-bind="template: {name: 'profile', data: user}"></div>
 </div>
 
+<script id="adminList" type="text/html">
+<p>
+	id: ${ id }
+</p>
+</script>
 
-
+<div data-bind="template: {name: 'adminList', foreach: admins}"></div>
 
 
 

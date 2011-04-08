@@ -213,7 +213,7 @@ var Database = (function() {
         next(null, document);
       }
     }, function(err, document, next) {
-//console.log('AADDDD', document, schema);
+//console.log('AADDDD', err, document, schema);
       var parents, _ref, _ref2, _ref3;
       if (err) {
         return next(err);

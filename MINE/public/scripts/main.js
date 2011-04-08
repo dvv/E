@@ -12,9 +12,13 @@ require({
 	priority1: ['order']
 });
 
+// augment IE. for how long?!
+if (typeof console == 'undefined') console = {log: alert};
+
 // load scripts
 // N.B. i wish knockout were based upon underscore...
-require(['order!scripts/jquery.js', 'order!scripts/jquery.tmpl.min.js', 'order!scripts/knockout-latest.js', 'order!scripts/knockout.mapping-latest.debug.js', 'underscore'], function() {
+//require(['order!scripts/jquery.js', 'order!scripts/jquery.tmpl.min.js', 'order!scripts/knockout-latest.js', 'order!scripts/knockout.mapping-latest.debug.js', 'underscore'], function() {
+require(['underscore'], function() {
 	//
 	// N.B. we rely on server-side logic which sets secure signed cookie called sid which holds the session
 	// ugly hack -- we fetch the sid cookie and pass it as parameter to `getContext` to get the user context
@@ -35,12 +39,18 @@ require(['order!scripts/jquery.js', 'order!scripts/jquery.tmpl.min.js', 'order!s
 					//
 					// setup the model
 					//
-					var model = {
+					var model = window.model = {
 						user: now.user,
-						context: now.context
+						context: now.context,
+						admins: ko.observableArray([])
 					};
 					ko.applyBindings(model);
 					console.log('NOWREADY', model);
+					model.context.Admin.query('', function(err, result) {
+						model.errors = err;
+						model.admins = result;
+						console.log('admins', arguments);
+					});
 				});
 				//
 				// define `now` client-side functions

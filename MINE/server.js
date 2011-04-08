@@ -26,7 +26,7 @@ Next({}, function(err, result, next) {
 
 }, function(err, model, next) {
 
-	//console.log('S1', arguments);
+	if (err) console.log('S1', err.stack);
 
 	//
 	// setup middleware
@@ -38,8 +38,13 @@ Next({}, function(err, result, next) {
 		// get capability
 		getCapability: this.getCapability = model.getCapability,
 		// native authentication
-		checkCredentials: this.checkCredentials = model.checkCredentials
+		checkCredentials: model.checkCredentials
 	}, config.security);
+	//
+	// expose schema.Self for now.js getContext
+	//
+	//this.Self = model.Self.schema;
+	//
 	function ordinary(req, res, next) {
 		var user = req.context.user;
 		user = {
@@ -73,7 +78,7 @@ Next({}, function(err, result, next) {
 
 }, function(err, middleware, next) {
 
-	if (err) console.log('S2', arguments);
+	if (err) console.log('S2', err.stack);
 
 	/***
 	var http = require('http').createServer();
@@ -147,7 +152,7 @@ Next({}, function(err, result, next) {
 	***/
 
 	var Cookie = require('cookie-sessions');
-	everyone.now.getContext = function(sid, callback) {
+	everyone.now.getContext = function getContext(sid, callback) {
 		// parse auth cookie to get the current user
 		// TODO: better to get them from the request, if any exposed
 		var options = config.security.session;
@@ -156,31 +161,49 @@ Next({}, function(err, result, next) {
 			session = Cookie.deserialize(options.secret, options.timeout, sid);
 		} catch (err) {}
 		// push capabilities to the client
+		var that = this;
 		var client = this.now;
 		if (session && session.uid) {
 			self.getCapability(session.uid, function(err, result) {
 				//console.log('CTX', arguments);
-				// bind caps to the user
+				// bind caps to the user context
 				_.each(result, function(obj, name) {
-					_.each(_.functions(obj), function(f) { obj[f] = _.bind(obj[f], obj, result); });
-					result[name] = obj;
+					var x = _.clone(obj);
+					_.each(_.functions(x), function(f) { x[f] = x[f].bind(null, result); });
+					result[name] = x;
 				});
 				// push to the client the sanitized user profile
 				client.user = {
 					id: result.user.id,
+					name: result.user.name,
 					email: result.user.email,
 					roles: result.user.roles
 				};
 				// push to the client the user context
 				client.context = result;
-				callback({error: err || null, result: err ? undefined : true});
+				// push profile stuff
+				client.get = function(callback) {
+					//var id = result.user.id;
+					result.Self.getProfile(function(err, result) {
+						if (callback) callback(err, result);
+					});
+				};
+				client.update = function(changes, callback) {
+					var id = result.user.id;
+					result.Self.setProfile(changes, function(err) {
+						if (err && callback) return callback({error: err});
+						getContext.call(that, sid, callback);
+					});
+				};
+				if (callback) callback({error: err || null, result: err ? undefined : true});
 			});
 		// invalid user, or just signed out 
 		} else {
 			// revoke capabilities from the client
 			client.user = {};
 			client.context = {};
-			callback({error: null, result: true});
+			client.setProfile = false;
+			if (callback) callback({error: null, result: true});
 		}
 	};
 
