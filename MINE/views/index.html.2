@@ -1,0 +1,57 @@
+<header id="header">
+	<a href="/auth" data-bind="visible: !user.id">Sign In</a>
+	<form action="/auth" method="post" data-bind="visible: user.id"><input type="submit" value="Sign Out" /></form>
+
+</header>
+<div id="content">
+	<!--div id="error" data-bind="text: JSON.stringify(error())"></div>
+	<div id="data" data-bind="text: JSON.stringify(result())"></div-->
+	<div id="error" data-bind="text: error"></div>
+	<div id="entity" data-bind="text: entity"></div>
+	<div data-bind="template: {name: 'list', foreach: result}, visible: Array.isArray(result())"></div>
+	<div data-bind="template: {name: 'item', foreach: result}, visible1: !Array.isArray(result())"></div>
+
+<script>
+/*$("#send-button").click(function() {
+	now.distributeMessage($("#text-input").val());
+	$("#text-input").val('');
+});*/
+</script>
+
+<div id="messages"></div>
+<input type="text" id="text-input" />
+<input type="button" value="Send" id="send-button" />
+
+<script id="menuForRole" type="text/html">
+	{{each user.roles}}
+	You can <a href="${ $value.split('-')[0] }" data-bind="click: function(){listEntity($value.split('-')[0])}">${ $value }</a>
+	{{/each}}
+</script>
+
+<script id="profile" type="text/html">
+	email: ${ email }
+	roles: ${ roles }
+</script>
+
+<div id="dashboard" data-bind="visible: user.id">
+Hello, <span data-bind="text: user.id"></span>!
+Hi, <span data-bind="text: (user.name || user.email || user.id || 'Guest')"></span>!
+<div id="menu" data-bind="template: {name: 'menuForRole'}"></div>
+Profile
+<div data-bind="template: {name: 'profile', data: user}"></div>
+</div>
+
+<script id="list" type="text/html">
+<p>id: <a href="#" data-bind="click: function(){model.getEntity(model.entity(), id)}">${ id }</a></p><p>name: ${ name }</p>
+</script>
+
+<script id="item" type="text/html">
+<p>id: <a href="#" data-bind1="click: function(){model.getEntity(model.entity(), id)}">${ id }</a></p><p>name: ${ name }</p>
+</script>
+
+
+
+</div>
+<footer id="footer">
+
+</footer>

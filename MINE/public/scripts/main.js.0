@@ -1,0 +1,226 @@
+'use strict';
+
+/*
+ *
+ * Copyright(c) 2011 Vladimir Dronnikov <dronnikov@gmail.com>
+ * MIT Licensed
+ *
+*/
+
+// configure RequireJS
+require({
+	priority1: ['order']
+});
+
+// augment IE. for how long?!
+if (typeof console == 'undefined') console = {log: alert};
+
+// load scripts
+// N.B. i wish knockout were based upon underscore...
+//require(['order!scripts/jquery.js', 'order!scripts/jquery.tmpl.min.js', 'order!scripts/knockout-latest.js', 'order!scripts/knockout.mapping-latest.debug.js', 'underscore'], function() {
+//require(['underscore'], function() {
+require([], function() {
+	//
+	// N.B. we rely on server-side logic which sets secure signed cookie called sid which holds the session
+	// ugly hack -- we fetch the sid cookie and pass it as parameter to `getContext` to get the user context
+	// FIXME: beautify, they work on now.js exposing the request object -- this would allow for pure server-side login
+	//
+	var sid = document.cookie.match(new RegExp('(?:^|;) *' + 'sid' + '=([^;]*)')); sid = sid && sid[1] || '';
+	// sid is set === user logged in (or has been hacked ;)
+	//if (sid) {
+		// establish nowjs connection
+		require(['nowjs/now.js'], function() {
+			// connection established ok
+			now.ready(function() {
+				// pass sid, server should push now.context and now.user
+				//console.log('LOAD', now);
+				now.getContext(sid, function() {
+					// now.context holds the user capabilities
+					// now.user holds the user profile
+					//
+					// setup the model
+					//
+
+/***
+					var model = window.model = {
+						user: now.user,
+						context: now.context,
+						entity: ko.observable(),
+						error: ko.observable(),
+						result: ko.observable(),
+						listEntity: function() {
+							console.log('LIST', this, arguments);
+						}
+					};
+					ko.applyBindings(model);
+***/
+
+					// TODO: don't expose
+					var model = window.model = new Backbone.Model({
+						user: now.user,
+						context: now.context,
+						entity: null,
+						error: null,
+						result: null
+					});
+					console.log('NOWREADY', model);
+
+					model.bind('change:entity', function() {
+						console.log('CHENT', this, arguments);
+					});
+					model.bind('change:error', function() {
+						console.log('CHERR', this, arguments);
+					});
+					model.bind('change:result', function() {
+						console.log('CHRES', this, arguments);
+					});
+
+					var CALL = window.CALL = function(entity, method) {
+						model.set({entity: entity});
+						//model.entity(entity);
+						var params = Array.prototype.slice.call(arguments, 2);
+						var promise = $.Deferred();
+						params.push(function(err, result) {
+							model.set({error: err || null, result: err ? null : (result || null)});
+							//console.log('RET', err, result, {error: err || null, result: (err ? null : (result || null))});
+							//model.error(err || null);
+							//model.result(err ? null : (result || null));
+							promise.resolve();
+						});
+						try {
+							model.get('context')[entity][method].apply(null, params);
+							//model.context[entity][method].apply(null, params);
+						} catch (err) {
+							if (err instanceof TypeError) err = 'Forbidden'; else err = err.message || err;
+							model.set({error: err, result: null});
+							//console.log('EXC', err);
+							//model.error(err);
+							//model.result(null);
+							promise.resolve();
+						}
+						return promise;
+					};
+
+				});
+				//
+				// define `now` client-side functions
+				//
+				now.receiveMessage = function(name, message) {
+					$("#messages").append("<br>" + name + ": " + message);
+				};
+///
+$(document).ready(function() {
+
+	// views
+	console.log('DOMREADY', typeof model);
+
+					var ViewError = Backbone.View.extend({
+						initialize: function() {
+							//console.log('VIEWINIT');
+							model.bind('change:error', this.render);
+						},
+						render: function() {
+							//console.log('RENDER');
+							// normalize errors
+							var error = model.get('error');
+							if (error) {
+								if (typeof error === 'string') error = {message: error};
+								if (!Array.isArray(error)) error = [error];
+								// TODO: beautify
+								$('#error').html(JSON.stringify(error));
+							} else {
+								$('#error').html('');
+							}
+							return this;
+						}
+					});
+
+					var ViewList = Backbone.View.extend({
+						initialize: function() {
+							//console.log('VIEWINIT');
+							model.bind('change:result', this.render);
+						},
+						render: function() {
+							//console.log('RENDER');
+							// normalize errors
+							var error = model.get('result');
+							$('#data').html(JSON.stringify(error));
+							return this;
+						}
+					});
+
+	//
+	// controller
+	//
+	var Controller = Backbone.Controller.extend({
+		initialize: function(config){
+			var ctx = config.caps;
+			console.log('INIT', ctx);
+			//
+			// operate on entities: #list/<Entity>[?querystring]
+			//
+			var entities = _.reduce(ctx, function(acc, x, k){
+				if (x && x.query) {
+					acc.push(k);
+				}
+				return acc;
+			}, []);
+			console.log('QUERIES', entities);
+			this.route(new RegExp('^list/(' + entities.join('|') + ')(?:\?(.*))?$'), 'list', function(entity, query){
+				query = query ? query.substring(1) : '';
+				console.log('ROUTE: list', entity, query);
+				/*ctx[entity].query(query, function(err, result){
+					if (err) {
+						model.set({error: err, entity: entity, query: query, data: undefined});
+					} else {
+						model.set({error: undefined, entity: entity, query: query, data: result});
+					}
+				});*/
+				/*var m = new Backbone.Collection();
+				m.url = entity + '?' + query;
+				m.fetch({
+					error: function(coll, xhr){
+						//console.log('MOD', xhr);
+						model.set({error: xhr.responseText, entity: entity, query: query, data: undefined});
+					},
+					success: function(coll, response){
+						//console.log('MOD', arguments);
+						model.set({error: response.error, entity: entity, query: query, data: response.result});
+					}
+				});*/
+			});
+			//console.log('ROUTES', list, this.routes);
+		},
+		routes: {
+			'help':										'help',    // #help
+			'search/:query':					'search',  // #search/kiwis
+		},
+		help: function(){
+			console.log('HELP');
+		},
+		search: function(query){
+			console.log('SEARCH:', query);
+		},
+		admin: function(){
+			console.log('ADMIN:');
+		},
+	});
+
+					new ViewError();
+					new ViewList();
+					console.log(now.context);
+					new Controller({caps: now.context});
+					Backbone.history.start();
+
+$("#send-button").click(function() {
+	now.distributeMessage($("#text-input").val());
+	$("#text-input").val('');
+});
+
+});
+///
+
+			});
+		});
+	//}
+});

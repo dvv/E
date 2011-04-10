@@ -278,7 +278,9 @@ Next({}, function(err, result, next) {
 	_.each(model, function(entity, name) {
 		if (entity.schema.collection !== 'User') return;
 		var orig = entity;
-		var store = {};
+		var store = {
+			schema: orig.schema
+		};
 		//
 		// get -- when getting the data for context.user we must use another schema
 		//
@@ -502,17 +504,21 @@ Next({}, function(err, result, next) {
 			return r;
 		}
 		roles['' + name + '-viewer'] = prop({
+			schema: store.schema,
 			query: store.queryAny
 		});
 		roles['' + name + '-reader'] = prop({
+			schema: store.schema,
 			query: store.queryAny,
 			get: store.getAny
 		});
 		roles['' + name + '-creator'] = prop({
+			schema: store.schema,
 			query: store.queryAny,
 			add: store.add
 		});
 		roles['' + name + '-author'] = prop({
+			schema: store.schema,
 			query: store.queryOwn,
 			get: store.getOwn,
 			add: store.add,
@@ -524,6 +530,7 @@ Next({}, function(err, result, next) {
 		// collect the full access role
 		fullRole.push(full);
 		roles[full] = prop({
+			schema: store.schema,
 			query: store.queryAny,
 			get: store.getAny,
 			add: store.add,

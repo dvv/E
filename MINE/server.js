@@ -64,6 +64,9 @@ Next({}, function(err, result, next) {
 	var routes = [
 		['/', {get: ordinary, post: ordinary}],
 		['GET', '/profile', ordinary],
+		['GET', '/admin', function(req, res, next) {
+			res.render('admin', res.context);
+		}],
 		['POST', '/captcha', function(req, res, next) {
 			console.log('CAPTURED', req.headers, req.body);
 			res.send('false\nfock!');
@@ -166,10 +169,12 @@ Next({}, function(err, result, next) {
 		if (session && session.uid) {
 			self.getCapability(session.uid, function(err, result) {
 				//console.log('CTX', arguments);
+				var schema = {};
 				// bind caps to the user context
 				_.each(result, function(obj, name) {
 					var x = _.clone(obj);
 					_.each(_.functions(x), function(f) { x[f] = x[f].bind(null, result); });
+					schema[name] = x.schema; delete x.schema;
 					result[name] = x;
 				});
 				// push to the client the sanitized user profile
@@ -195,15 +200,16 @@ Next({}, function(err, result, next) {
 						getContext.call(that, sid, callback);
 					});
 				};
-				if (callback) callback({error: err || null, result: err ? undefined : true});
+				// return db schema
+				if (callback) callback({schema: schema});
 			});
 		// invalid user, or just signed out 
 		} else {
 			// revoke capabilities from the client
 			client.user = {};
 			client.context = {};
-			client.setProfile = false;
-			if (callback) callback({error: null, result: true});
+			client.get = client.update = false;
+			if (callback) callback({});
 		}
 	};
 

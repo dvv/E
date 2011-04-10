@@ -10,7 +10,7 @@
 	</div>
 </form>
 <!-- native signup -->
-<%if (signup) {%>
+<% if (signup) { %>
 <form method="post">
 	<div>
 		<p>ID</p>
@@ -27,16 +27,16 @@
 		<p><input type="submit" name="signup" value="Sign Up" /></p>
 	</div>
 </form>
-<%}%>
+<% } %>
 <!-- janrain.com -->
-<%if (janrain) {%>
+<% if (janrain) { %>
 <div>
 	<iframe src="https://<%-janrain.domain%>.rpxnow.com/openid/embed?language_preference=en&token_url=<%-tokenUrl%>" style="width:400px;height:240px;" scrolling="no" frameborder="no"></iframe>
 </div>
-<%}%>
+<% } %>
 <!-- loginza.ru -->
-<%if (loginza) {%>
+<% if (loginza) { %>
 <div>
-	<iframe src="https://loginza.ru/api/widget?overlay=loginza&lang=en&token_url=<%-tokenUrl%>" style="width:359px;height:300px;" scrolling="no" frameborder="no"></iframe>
+	<iframe src="https://loginza.ru/api/widget?overlay=loginza&lang=en&token_url=<%-tokenUrl%></iframe>" style="width:359px;height:300px;" scrolling="no" frameborder="no"></iframe>
 </div>
-<%}%>
+<% } %>
