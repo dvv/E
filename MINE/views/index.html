@@ -16,7 +16,9 @@ Profile
 </div>
 
 <script id="tmpl-menu" type="text/html">
-<a href="#list/${entity}">${entity}</a>&nbsp;
+{{each entities}}
+<a href="#list/${item}">${item}</a>&nbsp;
+{{/each}}
 </script>
 
 <script id="tmpl-error" type="text/html">

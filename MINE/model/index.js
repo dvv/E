@@ -20,6 +20,7 @@ var schema = require('./schema')(db);
 var REGEXP_ID = /^[a-zA-Z0-9_]+$/;
 var REGEXP_IP = /^\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}$/;
 var REGEXP_EMAIL = /^([\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+\.)*[\w\!\#$\%\&\'\*\+\-\/\=\?\^\`{\|\}\~]+@((((([a-z0-9]{1}[a-z0-9\-]{0,62}[a-z0-9]{1})|[a-z])\.)+[a-z]{2,6})|(\d{1,3}\.){3}\d{1,3}(\:\d{1,5})?)$/i;
+//'
 
 //
 // standard roles priority: a role can delegate only roles of higher index

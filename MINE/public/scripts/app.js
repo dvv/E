@@ -134,7 +134,7 @@ $(document).ready(function() {
 						if (methods.query) entities.push(entity);
 					});
 					console.log('MENU', entities);
-					$.tmpl(this.template, entities).appendTo(this.el);
+					$.tmpl(this.template, {entities: entities}).appendTo(this.el);
 					return this;
 				}
 			});
